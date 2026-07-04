@@ -237,6 +237,7 @@ cat <<'HEAD'
   .sig{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:6px;padding:5px 8px;margin:5px 0}
   .acc{border-collapse:collapse;width:100%;font-size:12px;margin:7px 0} .acc td{border:1px solid #e9ecef;padding:4px 8px}
   .acc td:first-child{white-space:nowrap;font-weight:600} .accok{background:#ebfbee} .accng{background:#fff5f5;color:#666}
+  .meaning{background:#fff9db;border-left:3px solid #fab005;padding:4px 9px;margin:5px 0;font-size:12.5px;border-radius:0 5px 5px 0}
   .report table{border-collapse:collapse;margin:8px 0;font-size:13px;width:100%} .report th,.report td{border:1px solid #dee2e6;padding:5px 8px;text-align:left;vertical-align:top} .report th{background:#f1f3f5} .report ul,.report ol{margin:6px 0;padding-left:1.5em} .report code{background:#f1f3f5;padding:1px 4px;border-radius:3px;font-size:12px} .report pre.code{background:#f8f9fa;border:1px solid #e9ecef;padding:8px;overflow:auto;font-size:12px;line-height:1.4} .report hr{border:0;border-top:2px dashed #ced4da;margin:24px 0}
   /* 分析レポート: 各docを中央寄せの紙カードにし、行長を制限して読みやすく */
   .report.analysis{background:#eef1f4;padding:26px 18px}
@@ -468,7 +469,7 @@ function section(t,html){ return html?("<h3>"+t+"</h3>"+html):""; }
 function buildTerms(model){ var T={};
   for(var id in model){ var n=model[id];
     if(n.label && n.label.length>=2 && !T[n.label]) T[n.label]={id:id,kind:(TYPEJA[n.type]||"カード"),of:n.label};
-    if(n.states) n.states.split("|").forEach(function(s){ s=s.trim(); if(s&&!T[s]) T[s]={id:id,kind:"状態",of:n.label}; });
+    if(n.states) n.states.split("|").forEach(function(s){ s=s.split("//")[0].trim(); if(s&&!T[s]) T[s]={id:id,kind:"状態",of:n.label}; });
     if(n.fields) n.fields.split(";").forEach(function(f){ f=f.trim(); if(!f)return; var nm=f.replace(/:.*$/,"").replace(/\?$/,"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"項目",of:n.label}; });
     if(n.behaviors) n.behaviors.split(";").forEach(function(b){ var nm=(b.split(":")[0]||"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"述語",of:n.label}; });
     if(n.transitions) n.transitions.split(";").forEach(function(tr){ var nm=(tr.split(":")[0]||"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"遷移",of:n.label}; });
@@ -508,11 +509,16 @@ function dataFields(str){ if(!str) return "";
     if(cons) h+=" <span class=\"muted\">〔"+cons.replace(/_/g," ")+"〕</span>";
     if(sm) h+=" <span class=\"smell\">⚠ OR状態へ</span>";
     return h+"</div>"; }).join(""); }
-function stateChips(str){ if(!str) return ""; return str.split("|").map(function(s){return "<span class=\"stc\">"+s.trim()+"</span>";}).join(" "); }
+// 状態は「名 // ドメイン上の意味」を持てる（例: 受信 // チャージ要求を受け取り決済が未着手の初期状態）
+function parseStates(str){ if(!str) return []; return str.split("|").map(function(s){ var p=s.split("//");
+    var name=p[0].trim(); if(!name) return null; return {name:name, def:(p[1]||"").trim()}; }).filter(Boolean); }
+function stateChips(str){ return parseStates(str).map(function(s){
+    return "<div class=\"frow\"><span class=\"stc\">"+s.name+"</span>"+(s.def?" <span class=\"muted\">＝"+s.def+"</span>":" <span class=\"muted\">（意味未記述 — states の「// 意味」で定義）</span>")+"</div>"; }).join(""); }
 function transRows(str){ if(!str) return ""; return str.split(";").map(function(t){ t=t.trim(); if(!t) return "";
+    var dp=t.split("//"); var def=(dp[1]||"").trim(); t=dp[0].trim();
     var m=t.match(/^(.+?):(.+?)->(.+)$/); if(!m) return "<div class=\"frow\">"+t+"</div>";
     var outs=m[3].split("|").map(function(o){return infoChip(o,"orc");}).join(" ");
-    return "<div class=\"frow\"><b>"+m[1].trim()+"</b>: <span class=\"stc\">"+m[2].trim()+"</span> <span class=\"arrow\">→</span> "+outs+"</div>"; }).join(""); }
+    return "<div class=\"frow\"><b>"+m[1].trim()+"</b>: <span class=\"stc\">"+m[2].trim()+"</span> <span class=\"arrow\">→</span> "+outs+(def?"<div class=\"muted\" style=\"margin-left:1em\">＝"+def+"</div>":"")+"</div>"; }).join(""); }
 function behaviorHtml(n){ var h="";
   if(n.bin) h+=section("入力", n.bin.split(";").map(function(x){return infoChip(x,"inc");}).join(" "));
   if(n.decide) h+=section("判定", "<p>"+linkify(n.decide)+"</p>");
@@ -606,15 +612,17 @@ function termDef(n){
 function parseTransitions(t){
   if(!t) return [];
   return t.split(";").map(function(s){ s=s.trim(); if(!s) return null;
+    var dp=s.split("//"); var def=(dp[1]||"").trim(); s=dp[0].trim();
     var i=s.indexOf(":"); if(i<0) return null;
     var name=s.slice(0,i).trim(); var m=s.slice(i+1).split("->"); if(m.length<2) return null;
     var outs=m[1].split("|").map(function(x){return x.trim();}).filter(Boolean);
-    return {name:name, from:m[0].trim(), to:outs[0], alts:outs.slice(1)};
+    return {name:name, from:m[0].trim(), to:outs[0], alts:outs.slice(1), def:def};
   }).filter(Boolean);
 }
 function dictCards(m){ var h="";
   for(var id in m){ var n=m[id]; if(n.type!=="aggregate") continue;
-    var sts=(n.states||"").split("|").map(function(s){return s.trim();}).filter(Boolean);
+    var stobjs=parseStates(n.states); var sdef={}; stobjs.forEach(function(s){ sdef[s.name]=s.def; });
+    var sts=stobjs.map(function(s){return s.name;});
     var trs=parseTransitions(n.transitions);
     if(sts.length<2||!trs.length) continue;
     h+="<h3>『"+n.label+"』の動詞と状態 <span class=\"muted\">— 動詞は状態の区別を暗黙に生む。✗＝防いでいる事故</span></h3>";
@@ -623,6 +631,7 @@ function dictCards(m){ var h="";
       var stem=t.name.replace(/する$/,"");
       var prod=trs.filter(function(p){return p.to===t.from||p.alts.indexOf(t.from)>=0;});
       h+="<div class=\"dictcard verbcard\"><div class=\"dch\">"+t.name+"<span class=\"dctype\" style=\"background:var(--command)\">動詞</span></div>";
+      h+="<div class=\"meaning\">"+(t.def?("<b>ドメイン上の意味</b>＝"+t.def):("<b>ドメイン上の意味</b>＝<span class=\"muted\">未記述（この語は業務で何をすることか。transitions の「// 意味」で定義）</span>"))+"</div>";
       h+="<div class=\"sig\">"+t.name+" : <b>"+t.from+"</b>の"+n.label+" ─→ "+t.to+(t.alts.length?" ｜ "+t.alts.join(" ｜ "):"")+"</div>";
       h+="<div class=\"muted\">⚡ この語が「"+t.from+"である／でない」の区別を生む＝前提を満たした値だけを受け付ける</div>";
       h+="<table class=\"acc\">";
@@ -641,6 +650,7 @@ function dictCards(m){ var h="";
       var cant=trs.filter(function(t){return t.from!==s;});
       var born=trs.filter(function(t){return t.to===s||t.alts.indexOf(s)>=0;});
       h+="<div class=\"dictcard statecard\"><div class=\"dch\">"+s+"<span class=\"dctype\" style=\"background:var(--aggregate)\">状態</span></div>";
+      h+="<div class=\"meaning\">"+(sdef[s]?("<b>ドメイン上の意味</b>＝"+sdef[s]):("<b>ドメイン上の意味</b>＝<span class=\"muted\">未記述（この状態は業務上どういう局面か。states の「// 意味」で定義）</span>"))+"</div>";
       h+="<div class=\"rel\">できること: "+(can.length?can.map(function(t){return "<span class=\"orc\">✓ "+t.name+" → "+t.to+"</span>";}).join(" "):"<span class=\"muted\">（終端状態＝ここからの変化は無い）</span>")+"</div>";
       h+="<div class=\"rel\">できないこと: "+cant.map(function(t){return "<span class=\"smell\">✗ "+t.name+"</span>";}).join(" ")+"</div>";
       h+="<div class=\"muted\">この状態を生む動詞: "+(born.length?born.map(function(t){return t.name;}).join("・"):"（初期状態）")+"</div>";

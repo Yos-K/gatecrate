@@ -135,5 +135,14 @@ run "$D/r12.es"
 printf '%s\n' "$OUT" | grep -q 'R12.*未宣言' && pass "R12 fires: undeclared from-state named" || fail "no R12: $OUT"
 printf '%s\n' "$OUT" | grep -q 'R12.*与信失敗' && fail "R12 false positive on failure-outcome alternative: $OUT" || pass "to|fail alternative is exempt"
 
+echo "property 13/14: verbs and states without '// domain meaning' -> R13/R14 warn"
+printf 'N a aggregate 集約 | fields=x:c | states=受信|確定 | transitions=確定する:受信->確定 | invariant=x\n' > "$D/nomean.es"
+run "$D/nomean.es"
+printf '%s\n' "$OUT" | grep -q 'R13' && pass "R13 verb meaning missing" || fail "no R13: $OUT"
+printf '%s\n' "$OUT" | grep -q 'R14' && pass "R14 state meaning missing" || fail "no R14: $OUT"
+printf 'N a aggregate 集約 | fields=x:c | states=受信 // 要求を受け未着手|確定 // 計上済の終端 | transitions=確定する:受信->確定 // 請求を確定し売上計上 | invariant=x\n' > "$D/mean.es"
+run "$D/mean.es"
+printf '%s\n' "$OUT" | grep -qE 'R13|R14' && fail "R13/R14 false positive: $OUT" || pass "no R13/R14 when meaning present"
+
 echo "---- es-lint-info: PASS=$PASS FAIL=$FAIL ----"
 [ "$FAIL" -eq 0 ]

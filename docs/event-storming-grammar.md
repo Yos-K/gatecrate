@@ -99,8 +99,8 @@ ESで確定した規則は [`docs/spec-rules.ja.md`](spec-rules.ja.md) のミニ
 | キー | 対象型 | 意味（4層）|
 |---|---|---|
 | `fields=名:制約; 名?; 名:[a\|b\|c]` | aggregate / event / readmodel | syntax: AND合成・`?`任意・`[..]`OR分岐。**イベントも型付きpayloadを持つ** |
-| `states=s1\|s2\|s3` | aggregate | syntax: OR状態集合（**フラグ・ステータスコードはこれに昇格**）|
-| `transitions=名:from->to\|fail` | aggregate | semantics: 状態遷移（状態機械）|
+| `states=s1 // 意味\|s2 // 意味` | aggregate | syntax+semantics: OR状態集合（フラグ/コードはこれに昇格）。**各状態に「// ドメイン上の意味」必須**（「受信」だけでは意味不明。R14）|
+| `transitions=名:from->to\|fail // 意味` | aggregate | semantics: 状態遷移＋**動詞のドメイン上の意味**（オーソリする＝支払い枠を確保する。R13で必須化）|
 | `in=a;b` / `out=X\|Y` / `decide="..."` | command / policy | semantics: behavior（入力→出力OR・判定）|
 | `behaviors=名: in -> out // 定義` | policy | semantics: decide内の述語（「期限内」等）の定義。**未定義の述語はNG** |
 | `role=` / `note=` / `discuss=` | 任意 | 学習補助: カード固有の役割 / 実装評価 / ホットスポットの論点（何を決めるか）|
