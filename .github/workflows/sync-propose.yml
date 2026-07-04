@@ -1,0 +1,233 @@
+# .github/workflows/sync-propose.yml
+# gatecrate が発行するテンプレートワークフロー（コンセプト実証レベル）
+#
+# 消費側プロジェクトでの使い方:
+#   1. このファイルを消費側の .github/workflows/harness-sync.yml としてコピー
+#   2. env.HARNESS_KIT_REPO を自分の fork / mirror に変更（必要な場合）
+#   3. sync-manifest.yaml が存在することを確認
+#   4. （推奨）repo secret HARNESS_SYNC_PAT に PR 作成権限つき PAT を設定すると、同期 PR で消費側 CI が
+#      自動起動する（issue #35）。未設定なら GITHUB_TOKEN で作成され CI は自動起動しない（PR 本文で警告）。
+#
+# 動作:
+#   - consumed_scripts とその co-dependency（source される kit スクリプト）を推移的に同期（issue #34）。
+#
+# 設計根拠: design.md §3.2 sync-manifest + PR 型伝播（+ reusable workflow 併用）
+#
+# 固有設定の保護保証:
+#   managed_files の列挙にないパスは書き換えられない（ホワイトリスト方式）。
+#   消費者の固有設定 harness.config.sh / profile.yaml は構造上 PR に含まれない。
+
+name: harness-sync (sync-propose)
+
+on:
+  # 週次自動実行（月曜 9:00 JST = 月曜 0:00 UTC）
+  schedule:
+    - cron: '0 0 * * 1'
+
+  # 手動 dispatch（新 tag 発行時にトリガー）
+  workflow_dispatch:
+    inputs:
+      kit_version:
+        description: '同期対象 gatecrate バージョン（例: 1.0.0）'
+        required: false
+        type: string
+
+env:
+  HARNESS_KIT_REPO: Yos-K/gatecrate
+
+jobs:
+  sync-check-and-propose:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: 消費側プロジェクトをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: sync-manifest.yaml の読み込み
+        id: manifest
+        run: |
+          if [ ! -f "sync-manifest.yaml" ]; then
+            echo "❌ sync-manifest.yaml が存在しません。"
+            echo "   install.sh 実行後に作成される sync-manifest.yaml が必要です。"
+            exit 1
+          fi
+          PINNED=$(grep '^harness_kit_version:' sync-manifest.yaml \
+            | sed 's/harness_kit_version: *//; s/"//g' | tr -d '[:space:]')
+          echo "pinned_version=$PINNED" >> "$GITHUB_OUTPUT"
+          echo "固定バージョン: $PINNED"
+
+      - name: gatecrate の最新タグを取得
+        id: kit
+        run: |
+          LATEST=$(gh release list \
+            --repo "$HARNESS_KIT_REPO" \
+            --limit 1 \
+            --json tagName \
+            --jq '.[0].tagName' 2>/dev/null || echo "")
+          if [ -z "$LATEST" ]; then
+            echo "警告: gatecrate のリリース情報を取得できませんでした"
+            LATEST="unreleased"
+          fi
+          echo "latest_tag=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "最新バージョン: $LATEST"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: バージョン比較
+        id: version_check
+        run: |
+          PINNED="${{ steps.manifest.outputs.pinned_version }}"
+          LATEST="${{ steps.kit.outputs.latest_tag }}"
+          if [ "$PINNED" = "$LATEST" ]; then
+            echo "✓ 最新版を使用中です。同期 PR は不要です。"
+            echo "up_to_date=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "バージョン差分を検出: $PINNED → $LATEST"
+            echo "up_to_date=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 差分なしの場合はスキップ
+        if: steps.version_check.outputs.up_to_date == 'true'
+        run: echo "同期不要。ワークフロー終了。"
+
+      - name: gatecrate を一時クローン
+        if: steps.version_check.outputs.up_to_date == 'false'
+        run: |
+          git clone --depth 1 \
+            "https://github.com/$HARNESS_KIT_REPO.git" \
+            /tmp/gatecrate
+
+      - name: 差分を取得（消費側が opt-in した consumed_scripts のみ）
+        if: steps.version_check.outputs.up_to_date == 'false'
+        id: diff
+        run: |
+          KIT_MANIFEST="/tmp/gatecrate/sync-manifests/android-jvm.yaml"
+          KIT_DIR="/tmp/gatecrate"
+          SYNC_FILES=""
+
+          # 同期するのは「この消費側が consumed_scripts で取り込むと宣言したファイル」だけ。
+          # kit の全ホワイトリストを撒くと、消費側が未採用・未設定のスクリプト（固有値や
+          # ROOT 解決が前提のもの）まで上書きして壊す。opt-in に絞ることで、部分消費の
+          # プロジェクトでも安全かつ増分的に更新できる。kit の whitelist は「kit 管理の
+          # 正当なファイルか」の検証にのみ使う（whitelist 外は構造上同期不可）。
+          consumed=$(grep -A10000 '^consumed_scripts:' sync-manifest.yaml \
+            | grep -E '^[[:space:]]*-[[:space:]]' \
+            | sed -E 's/^[[:space:]]*-[[:space:]]*//; s/[[:space:]]*#.*$//; s/[[:space:]]*$//')
+
+          # co-dependency を推移的に取り込む（issue #34）: consumed スクリプトが source する別の kit
+          # スクリプト（`$ROOT/scripts/<x>`）も同期対象に加える。依存先が欠けると消費側で実行時に壊れる。
+          worklist="$consumed"
+          while [ -n "$worklist" ]; do
+            next=""
+            for cf in $worklist; do
+              b="$(basename "$cf")"
+              r=$(grep -E "/${b}\$" "$KIT_MANIFEST" | grep -E '^[[:space:]]*-' \
+                | sed -E 's/^[[:space:]]*-[[:space:]]*//' | head -1)
+              [ -n "$r" ] && [ -f "$KIT_DIR/$r" ] || continue
+              for dep in $(grep -oE '\$ROOT/scripts/[A-Za-z0-9._-]+\.(sh|java|py)' "$KIT_DIR/$r" \
+                  2>/dev/null | sed 's#.*/##' | sort -u); do
+                grep -E "/${dep}\$" "$KIT_MANIFEST" >/dev/null 2>&1 || continue  # kit 管理のみ
+                case " $consumed " in
+                  *" scripts/$dep "*) ;;
+                  *) consumed="$consumed scripts/$dep"; next="$next scripts/$dep"
+                     echo "co-dependency 取り込み: scripts/$dep (← $b)" ;;
+                esac
+              done
+            done
+            worklist="$next"
+          done
+
+          for consumer_file in $consumed; do
+            [ -n "$consumer_file" ] || continue
+            base="$(basename "$consumer_file")"
+            # kit 側の正当なソースパスを basename で引く（whitelist 外なら同期しない）
+            rel_path=$(grep -E "/${base}\$" "$KIT_MANIFEST" \
+              | grep -E '^[[:space:]]*-' | sed -E 's/^[[:space:]]*-[[:space:]]*//' | head -1)
+            if [ -z "$rel_path" ]; then
+              echo "WARN: $base は kit whitelist に無い → 同期対象外"
+              continue
+            fi
+            kit_file="$KIT_DIR/$rel_path"
+            [ -f "$kit_file" ] || continue
+            if [ ! -f "$consumer_file" ] || \
+               ! diff -q "$kit_file" "$consumer_file" > /dev/null 2>&1; then
+              mkdir -p "$(dirname "$consumer_file")"
+              cp "$kit_file" "$consumer_file"
+              SYNC_FILES="$SYNC_FILES $consumer_file"
+            fi
+          done
+
+          echo "synced_files=$SYNC_FILES" >> "$GITHUB_OUTPUT"
+          echo "変更対象ファイル数: $(echo "$SYNC_FILES" | wc -w)"
+
+      - name: sync-manifest.yaml のバージョン更新
+        if: steps.version_check.outputs.up_to_date == 'false'
+        run: |
+          LATEST="${{ steps.kit.outputs.latest_tag }}"
+          sed -i "s/^harness_kit_version:.*/harness_kit_version: \"$LATEST\"/" sync-manifest.yaml
+
+      - name: 同期 PR を起票
+        if: steps.version_check.outputs.up_to_date == 'false'
+        run: |
+          LATEST="${{ steps.kit.outputs.latest_tag }}"
+          BRANCH="harness-sync/$LATEST"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+
+          # 変更ファイルをステージング
+          # harness.config.sh / profile.yaml は構造上差分に含まれないが念のため除外
+          for f in ${{ steps.diff.outputs.synced_files }}; do
+            case "$f" in
+              *harness.config.sh|*profile.yaml)
+                echo "除外（固有設定）: $f"
+                ;;
+              *)
+                git add "$f"
+                ;;
+            esac
+          done
+          git add sync-manifest.yaml  # バージョン更新のみ
+
+          git diff --cached --quiet && echo "差分なし。コミット不要。" && exit 0
+
+          git commit -m "chore: sync gatecrate scripts to $LATEST"
+          git push origin "$BRANCH"
+
+          # CI 起動の注意（issue #35）: PAT で作成した PR は消費側の CI をトリガーするが、
+          # GITHUB_TOKEN で作成した PR は GitHub の仕様で他ワークフローを起動しない（再帰防止）。
+          # PAT 未設定時は「CI が自動起動しない」旨を本文に明記し、取りこぼしを防ぐ。
+          if [ "$HAS_PAT" = "true" ]; then
+            CI_NOTE="この PR は HARNESS_SYNC_PAT で作成されたため、消費側 CI が自動起動します。"
+          else
+            CI_NOTE="> ⚠️ **この PR は GITHUB_TOKEN で作成されたため CI が自動起動しません**（GitHub の再帰防止仕様）。
+          マージ前に空コミット push 等で CI を一度回してゲート緑を確認してください。
+          自動起動させるには repo secret \`HARNESS_SYNC_PAT\`（PR 作成権限つき PAT）を設定します。"
+          fi
+
+          BODY="## gatecrate 同期 PR
+
+          gatecrate \`$LATEST\` が利用可能。\`consumed_scripts\`（とその co-dependency）を更新します。
+
+          $CI_NOTE
+
+          ### 固有設定の保護
+          ホワイトリスト方式により \`harness.config.sh\` / \`profile.yaml\` は**含まれません**。
+
+          ### マージ前チェックリスト
+          - [ ] CI の全ゲートが green であること（メタハーネス原則）
+          - [ ] \`harness.config.sh\` の固有設定値が変更されていないこと
+          - [ ] 差分スクリプトの変更内容をレビュー済みであること"
+
+          gh pr create \
+            --title "chore: sync gatecrate to $LATEST" \
+            --body "$BODY" \
+            --head "$BRANCH" \
+            --base main
+        env:
+          GH_TOKEN: ${{ secrets.HARNESS_SYNC_PAT || secrets.GITHUB_TOKEN }}
+          HAS_PAT: ${{ secrets.HARNESS_SYNC_PAT != '' }}

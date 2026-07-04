@@ -1,0 +1,58 @@
+# TAKT workflow — derive & converge a consumer's harness.config.sh for the mutation gate.
+#
+# Shape (validated against TAKT's builtins/skill/references/yaml-schema.md): the gatecrate-setup
+# "8->10" iteration is NOT a multi-step state machine — TAKT step transitions cannot branch on a
+# shell exit code. It IS a single agent step guarded by a `type: command` quality gate: TAKT runs
+# run-mutation-tests.sh after the step, passes only on exit 0, and on failure re-invokes the SAME
+# step with the exit code + sanitized stdout/stderr (the javac error or the PITest triage). The
+# agent reads that deterministic signal and refines harness.config.sh (or adds a test), and the
+# gate re-runs until it passes. The judgment (SURVIVED -> add a test vs NO_COVERAGE -> exclude)
+# is the persona's; TAKT only enforces the gate and loops.
+#
+# Requires in the consumer's .takt/config.yaml:  workflow_command_gates: { custom_scripts: true }
+# Prerequisites: scripts/run-mutation-tests.sh adopted, harness.config.sh present with the
+# mechanically-derived values (BUILDCONFIG_PACKAGE/FIELDS, TARGET_CLASSES/TESTS) already filled.
+name: harness-config-derive
+description: >
+  Converge a consumer's harness.config.sh for gatecrate's mutation gate. One agent step edits
+  the config (and adds focused tests), guarded by a command gate running run-mutation-tests.sh;
+  the gate's deterministic exit code and fed-back triage drive each refinement until it passes.
+max_steps: 8
+initial_step: derive
+
+steps:
+  - name: derive
+    persona: gatecrate-setup
+    edit: true
+    instruction: |
+      Goal: make `sh scripts/run-mutation-tests.sh` exit 0 by editing harness.config.sh (and,
+      where the gate demands it, adding focused tests) — WITHOUT lowering the floor or weakening
+      tests. The mutation-gate quality gate runs the script for you after each turn; you do not
+      run it yourself. When it fails you receive its exit code and stdout/stderr — read them and
+      act per this map, then stop and let the gate re-run:
+
+      - javac "package ... does not exist" / "cannot find symbol <Type>" for a class under a
+        non-scanned package (e.g. presentation): add that source file to EXTRA_MAIN_SOURCES
+        (repo-root-relative) in harness.config.sh.
+      - javac "cannot find symbol <FLAG>" referencing the generated BuildConfig: add
+        `public static final boolean <FLAG> = false;` to BUILDCONFIG_FIELDS.
+      - PITest triage "SURVIVED hotspots": a real test gap. Read the mutator + line, add ONE
+        focused test that kills it. Never exclude a SURVIVED class to pass; never lower the floor.
+      - PITest triage "NO_COVERAGE hotspots": a class no test exercises. If it is a genuinely
+        low-value table (i18n/string catalog, generated code), add its glob to EXCLUDED_CLASSES
+        with a one-line reason. If it is real logic, add a test instead.
+      - "Mutation score N below threshold" with no hotspots: coverage is thin; add example tests.
+
+      When the gate passes: set MUTATION_THRESHOLD to at or just below the achieved green score
+      (a small margin for nondeterminism), never above it, and finalize. Then you are done.
+    quality_gates:
+      - type: command
+        name: mutation-gate
+        command: "sh scripts/run-mutation-tests.sh"
+        cwd: "."
+        timeout_ms: 1200000
+    rules:
+      - condition: the mutation gate passed and harness.config.sh is finalized (threshold set)
+        next: COMPLETE
+      - condition: the gate can only pass by lowering the floor or fabricating tests
+        next: ABORT

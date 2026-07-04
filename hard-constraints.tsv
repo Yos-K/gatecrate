@@ -1,0 +1,3 @@
+require	THIRD_PARTY_NOTICES.md	cc-sdd	cc-sdd の帰属表示を維持する（MIT 義務・本体は npx で導入する方針）	raw
+forbid	README.md	battle-tested	README は誇張表現を避ける（PR #71 の honesty 修正・実証は ROADMAP の事実で語る）	raw
+forbid	README.ja.md	検証済み CI / 品質ゲートスクリプトの移植可能キット	README.ja も誇張表現を避ける（旧「検証済み」断定の退行防止）	raw

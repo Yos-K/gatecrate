@@ -1,0 +1,218 @@
+# gatecrate 自身の CI。
+#
+# なぜ: kit を複数プロジェクトへ展開する（ROADMAP P1）には kit を頻繁に変更するが、
+# これまで kit にはスクリプトを検証する仕組みが無く、壊れたスクリプトが消費側へ伝播するまで
+# 欠陥が分からなかった（v0.2.0 も作者のローカル sh -n だけが担保だった）。
+# だから kit 側で「構文・実バグ・manifest 整合性」を PR ごとに検証する。
+#
+# 段階導入（メタハーネス原則: 実績なしに厳しいゲートを常設しない）:
+#   - sh -n          … 構文。確実に通る floor。
+#   - shellcheck     … まず -S error（実行を壊す実バグのみ）。傾向が見えたら warning へ ratchet。
+#   - manifest 整合性 … sync-manifests/*.yaml が指すパスが全て実在するか（同期の前提）。
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shell syntax (sh -n)
+        run: |
+          fail=0
+          for f in $(find . -name '*.sh' -not -path './.git/*'); do
+            if ! sh -n "$f"; then
+              echo "syntax error: $f"
+              fail=1
+            fi
+          done
+          [ "$fail" = "0" ] || { echo "sh -n found syntax errors"; exit 1; }
+          echo "sh -n: all shell scripts parse"
+
+      - name: ShellCheck (errors only)
+        # Blocking gate. The introductory advisory run (PR #4) confirmed the script base is clean
+        # at -S error, so this is ratcheted to a gate from the start. shellcheck is preinstalled on
+        # ubuntu-latest; -S error reports only execution-breaking findings. Next ratchet: -S warning
+        # once the base is confirmed clean there too (ROADMAP P1).
+        run: |
+          find . -name '*.sh' -not -path './.git/*' -print0 \
+            | xargs -0 shellcheck -S error
+          echo "shellcheck -S error: clean"
+
+      - name: POSIX portability (core/scripts/check-posix-portability.sh)
+        # Keep shipped scripts POSIX so they run the same from bash/zsh, from fish (which execs them
+        # via the #!/bin/sh shebang), and on Windows Git Bash/WSL. Fails on a non-#!/bin/sh shebang
+        # or a shellcheck SC3xxx bashism (sh -n / dash on the runner already covers non-POSIX syntax).
+        run: sh core/scripts/check-posix-portability.sh
+
+      - name: sync-manifest integrity
+        run: |
+          # Every path a manifest lists must exist, or a sync PR would copy a missing file.
+          # Missing paths are recorded to a file (not a shell var) so the result survives the
+          # pipe's subshell and does not depend on word-splitting behavior across shells.
+          missing="$(mktemp)"
+          for manifest in sync-manifests/*.yaml; do
+            case "$manifest" in *.example) continue ;; esac
+            grep -E '^[[:space:]]*-[[:space:]]' "$manifest" \
+              | sed -E 's/^[[:space:]]*-[[:space:]]*//' \
+              | while IFS= read -r path; do
+                  [ -n "$path" ] || continue
+                  [ -f "$path" ] || echo "$manifest -> $path" >> "$missing"
+                done
+          done
+          if [ -s "$missing" ]; then
+            echo "sync-manifest references missing paths:"
+            cat "$missing"
+            exit 1
+          fi
+          echo "sync-manifest integrity: all referenced paths exist"
+
+      - name: Behavior tests (tests/*.sh — looped in one step)
+        # One step instead of ~21. Each test is sub-second work, but a GitHub Actions step carries
+        # a fixed per-step overhead, so the many one-line `sh tests/test-*.sh` steps dominated the
+        # lint job's wall-clock (measured: ~19s, mostly step overhead, not test work). Looping over
+        # tests/*.sh pays that overhead once. It also AUTO-COVERS every test, killing the "added a
+        # test but forgot to wire it in CI" drift — test-check-release-version-name.sh had silently
+        # fallen out of the per-step list. Per-test PASS/FAIL is printed and a failing test's full
+        # output is dumped (indented), so failures stay as debuggable as separate steps were.
+        run: |
+          rc=0
+          for t in tests/*.sh; do
+            if sh "$t" >/tmp/bt.log 2>&1; then
+              echo "PASS  $t"
+            else
+              echo "FAIL  $t"; sed 's/^/    /' /tmp/bt.log; rc=1
+            fi
+          done
+          if [ "$rc" -eq 0 ]; then echo "All $(ls tests/*.sh | wc -l | tr -d ' ') behavior tests passed."; fi
+          exit "$rc"
+
+      - name: every reject-type gate has a behavior test (meta-gate dogfood)
+        # 「テスト無しゲートは黙って壊れても気づけない」を構造で止める。kit 自身の全 reject ゲートに
+        # テストが在ることを毎 PR で機械確認する。
+        run: sh core/scripts/check-gate-tests.sh
+
+      - name: every gate is classified — no untyped (meta-gate dogfood)
+        # ROI 剪定は型（prevention/detection/advisory）を要する。kit 自身の全ゲートが分類済み（or not-a-gate）で
+        # untyped=分類し忘れが無いことを毎 PR で機械確認する。失敗時は --explain の判断材料が出る。
+        run: sh core/scripts/check-gate-classified.sh
+
+  # Dogfooding: gate the kit with the kit's OWN generic core scripts, so the rules
+  # CONTRIBUTING preaches (conventional titles, no committed secrets) are enforced on the
+  # kit itself by the very tools it ships. The core scripts resolve their repo root and run
+  # unchanged here, exactly as a consumer would invoke them.
+  #
+  # The gap this exercise surfaced is now closed: adapters/android-jvm/check-file-sizes.sh only
+  # scans src/**.java, so it could not enforce the kit's own 300-line rule on shell scripts.
+  # core/scripts/check-file-line-limit.sh is the language-agnostic sibling — it scans caller-chosen
+  # globs, so below the kit dogfoods its 300-line rule on its own *.sh and *.md.
+  self-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        # Full history: the rule-doc / doc-currency gates compute `git log BASE..HEAD` for commit
+        # bodies (the Docs-Impact trailer). A shallow checkout makes that range empty, so the
+        # trailer is never seen and the gate misfires (observed: ship-scripts lane on PR #80/#82).
+        with:
+          fetch-depth: 0
+
+      - name: No committed secrets (core/scripts/check-no-committed-secrets.sh)
+        run: sh core/scripts/check-no-committed-secrets.sh
+
+      - name: File line limit — 300 (core/scripts/check-file-line-limit.sh)
+        # No env: the script sources the kit's own harness.config.sh (consumer #0), exactly as a
+        # real consumer wires it. That dogfoods the config -> script path, not just the script.
+        run: sh core/scripts/check-file-line-limit.sh
+
+      - name: Conventional PR title (core/scripts/check-conventional-title.sh)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | sh core/scripts/check-conventional-title.sh
+
+      - name: EN/JA doc currency (core/scripts/check-doc-currency.sh)
+        # Surfaced by the 2026-06-14 ROI self-evaluation as the one axis-2 consolidate-candidate:
+        # bilingual *.md / *.ja.md pairs were kept in sync by manual discipline, with no machine
+        # enforcement. This gate fails a PR that edits one side of a pair without the other. PR-only
+        # (it needs a base ref to diff against); fetch the base tip since checkout is shallow.
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+          DOC_CURRENCY_BASE="origin/${{ github.base_ref }}" sh core/scripts/check-doc-currency.sh
+
+      - name: Rule-doc currency (core/scripts/check-rule-doc-currency.sh)
+        # Dogfood the rule->doc currency gate on the kit itself (rule-doc-lanes.tsv): a change to a
+        # shipped core/adapter script must update CHANGELOG, or declare Docs-Impact:. Stops "added
+        # behavior that never shows up in the changelog" (a silent change a consumer cannot track).
+        # PR-only; fetch the base tip since checkout is shallow (two-dot diff needs only both endpoints).
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+          RULE_DOC_BASE="origin/${{ github.base_ref }}" sh core/scripts/check-rule-doc-currency.sh
+
+      - name: Prevention gates are live (core/scripts/probe-gate-liveness.sh)
+        # Second-order check (ROADMAP P4): the three prevention gates above are supposed to never
+        # fire here, so "green" alone cannot tell a working gate from a silently broken one. This
+        # probe injects a synthetic violation into each and confirms it is rejected (ALIVE) —
+        # the survival proof that keeps the harness's own gates honest over time.
+        run: sh core/scripts/probe-gate-liveness.sh
+
+      - name: Probe coverage audit (core/scripts/probe-gate-liveness.sh --audit)
+        # Dogfood the meta-check: every probe-able reject-type gate the kit ships must be covered by
+        # the survival proof. Catches "added a gate but forgot to wire its liveness probe".
+        run: sh core/scripts/probe-gate-liveness.sh --audit
+
+      - name: Hard constraints hold (core/scripts/check-hard-constraints.sh)
+        # The kit enforces its OWN invariants on itself via hard-constraints.tsv (cc-sdd attribution
+        # must stay; README must not regress to overclaiming). The gate the kit ships, run on the kit.
+        run: sh core/scripts/check-hard-constraints.sh
+
+      - name: No unresolved mutation escalation (core/scripts/check-mutation-escalation.sh)
+        # Even though the kit has no mutation loop, it runs its own escalation gate so a committed
+        # .kiro/.gatecrate-mutation-escalated could never slip in — every shipped gate runs on the kit.
+        run: sh core/scripts/check-mutation-escalation.sh
+
+      - name: ES model gates on the kit's own domain model (docs/model)
+        # The kit dogfoods its OWN domain model (consumer #0 of the ES living-model toolkit):
+        # grammar (es-lint), information completeness (es-lint-info; ERROR blocks, WARN is the
+        # grow-loop worklist), evidence truthfulness (check-es-evidence — a model claiming code
+        # that does not exist is rejected), and .cmap grammar. es-coverage is advisory: it prints
+        # the TO-BE attainment so the gap is visible on every run, but never blocks.
+        run: |
+          for m in docs/model/*.es; do
+            sh core/scripts/es-lint.sh "$m"
+            sh core/scripts/es-lint-info.sh "$m"          # R11/R12 = 第2層（三角測量）を含む
+            EVIDENCE_CODE_ROOT=. sh core/scripts/check-es-evidence.sh "$m"
+            sh core/scripts/check-es-assertions.sh "$m"   # 第1層: 主張の実行可能化（test= を実行）
+            sh core/scripts/check-model-refuted.sh "$m"   # 第3層: refute 工程の存在・鮮度
+          done
+          for c in docs/model/*.cmap; do sh core/scripts/es-cmap-lint.sh "$c"; done
+          EVIDENCE_CODE_ROOT=. sh core/scripts/es-coverage.sh \
+            docs/model/harness-meta-tobe.es docs/model/harness-meta.es || true
+
+      - name: Harness dashboard (job summary)
+        # Render every gate (type / liveness / ROI verdict) + numbers/graphs into the run's summary
+        # page — the native GitHub "dashboard". always() so it shows even when a gate above failed
+        # (that's when you most want it). Fetch firing history (best-effort, needs gh) so the live
+        # view also fills the ROI verdict column and the CI-cost / fires bar charts. Never fails the build.
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sh core/scripts/collect-gate-history.sh --limit 50 > /tmp/firing.tsv 2>/dev/null || true
+          DASHBOARD_GENERATED_AT="$(date -u '+%Y-%m-%d %H:%MZ')" \
+          DASHBOARD_HISTORY=docs/harness-history.tsv \
+          DASHBOARD_FIRING_TSV=/tmp/firing.tsv \
+            sh core/scripts/render-harness-dashboard.sh >> "$GITHUB_STEP_SUMMARY"

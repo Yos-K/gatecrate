@@ -1,0 +1,76 @@
+name: Domain Model Check
+
+# Advisory model-check of the formal domain specs (docs/domain/models/*.als)
+# with the Alloy Analyzer. Catches rule-level regressions at the design stage,
+# before any code exists to test (see scripts/check-domain-model.sh header).
+#
+# Advisory by design (docs/domain-model-ci-decision.md):
+# - NOT registered as a required check — a red run warns, it does not block.
+# - No continue-on-error: the only non-zero exits are real anomalies
+#   (unexpected counterexample, jar checksum mismatch) and must show red.
+# - Environment-caused skips (network failure fetching the jar) exit 0 inside
+#   the script; the workflow surfaces them as a visible warning so a skipped
+#   run is never mistaken for a verified one.
+
+on:
+  pull_request:
+    paths:
+      - 'docs/domain/models/**'
+      - 'scripts/check-domain-model.sh'
+      - '.github/workflows/domain-model-check.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/domain/models/**'
+      - 'scripts/check-domain-model.sh'
+      - '.github/workflows/domain-model-check.yml'
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: domain-model-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  alloy-advisory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Alloy jar
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/alloy
+          key: alloy-jar-${{ hashFiles('scripts/check-domain-model.sh') }}
+
+      - name: Model-check domain specs (advisory)
+        run: |
+          # `|| STATUS=$?` keeps the default `bash -e` from killing the step
+          # before the (counterexample) output below gets printed.
+          STATUS=0
+          OUT="$(sh scripts/check-domain-model.sh 2>&1)" || STATUS=$?
+          printf '%s\n' "$OUT"
+          if printf '%s\n' "$OUT" | grep -q 'skipping (advisory check)'; then
+            echo "::warning::domain-model check SKIPPED (advisory): Alloy unavailable - spec guarantees were NOT verified in this run."
+            {
+              echo "## Domain model check: SKIPPED (advisory)"
+              echo ""
+              echo "Alloy could not be fetched/run; the spec guarantees were **not** verified."
+              echo "Run \`sh scripts/check-domain-model.sh\` locally before relying on this result."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$STATUS"

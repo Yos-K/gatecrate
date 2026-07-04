@@ -1,0 +1,45 @@
+// templates/characterization/ExampleCharacterizationTest.kt.example
+//
+// Copy as `src/test/kotlin/characterization/<Cluster>CharacterizationTest.kt` (drop `.example`,
+// rename the class). The class name must end in `Test`/`Tests` so the gatecrate android-jvm runner
+// (--include-classname "^.*(Test|Tests|Property|Properties)$") picks it up.
+//
+// PURPOSE: pin the CURRENT behavior of a legacy cluster you are about to refactor — BEFORE you
+// touch it. This is the safety net. The flow is: characterize (this file) -> approve -> refactor
+// under green -> let diff-coverage ratchet the new structure. See README.md for the full loop.
+
+package characterization
+
+import org.junit.jupiter.api.Test
+// import your legacy cluster, e.g.:
+// import com.example.app.legacy.InvoiceCalculator
+
+class ExampleCharacterizationTest {
+
+    // Pin a representative set of real inputs through the legacy code and snapshot the output.
+    // Drive a WIDE spread of inputs (boundaries, empties, the weird ones) — characterization value
+    // comes from covering the behavior you don't yet understand, not from one happy path.
+    @Test
+    fun `legacy invoice calculation — current behavior`() {
+        val cases = listOf(
+            // label to input — pick inputs that exercise different branches of the legacy code
+            "empty" to 0,
+            "single" to 1,
+            "boundary-99" to 99,
+            "boundary-100" to 100,
+            "large" to 100_000,
+        )
+
+        val report = buildString {
+            for ((label, input) in cases) {
+                // val output = InvoiceCalculator.totalFor(input)   // <- call the legacy code
+                val output = "REPLACE_ME($input)"                    // <- placeholder; wire real call
+                appendLine("$label | in=$input | out=$output")
+            }
+        }
+
+        // One snapshot captures the whole table. On first run this FAILS and writes
+        // ExampleInvoice.received.txt — review it, then approve to lock the behavior in.
+        Approvals.verify(report, "ExampleInvoice")
+    }
+}

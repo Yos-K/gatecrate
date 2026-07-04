@@ -1,0 +1,146 @@
+# [Android-JVMアダプタ] CI ワークフロー（フィットネスゲート + JVMテスト + Gradleビルド）
+# Customize the steps below to match your project's script paths and env vars.
+# See adapters/android-jvm/README.md for the required harness.config.sh variables.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # NDK/native ビルド向けのオプション設定（未設定なら空＝NDK install も .so 検証もスキップ）。
+  # GitHub の repository variables（Settings > Variables）で設定する。gatecrate#25 Gap2。
+  #   ANDROID_NDK       例: 27.0.12077973（externalNativeBuild の ndkVersion と一致させる）
+  #   ANDROID_CMAKE     例: 3.22.1（externalNativeBuild の cmake version と一致させる）
+  #   NATIVE_LIB_NAMES  例: "libprobe.so"（設定時のみ APK 同梱を assert）
+  #   NATIVE_LIB_ABIS   例: "arm64-v8a x86_64"（既定値あり）
+  #   NATIVE_LIB_APK    例: app/build/outputs/apk/debug/app-debug.apk
+  ANDROID_NDK: ${{ vars.ANDROID_NDK }}
+  ANDROID_CMAKE: ${{ vars.ANDROID_CMAKE }}
+  NATIVE_LIB_NAMES: ${{ vars.NATIVE_LIB_NAMES }}
+  NATIVE_LIB_ABIS: ${{ vars.NATIVE_LIB_ABIS }}
+  NATIVE_LIB_APK: ${{ vars.NATIVE_LIB_APK }}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fitness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate pull request title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | sh scripts/check-conventional-title.sh
+
+      - name: Enforce per-file line count limit
+        run: sh scripts/check-file-sizes.sh
+
+      - name: Scan for committed secrets
+        run: sh scripts/check-no-committed-secrets.sh
+
+      # Add project-specific fitness checks here (check-hard-constraints.sh, etc.)
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android build tools
+        # NDK/CMake は ANDROID_NDK / ANDROID_CMAKE が設定されたときだけ install する（NDK 不要の
+        # プロジェクトはダウンロード時間ゼロ）。値は externalNativeBuild の ndkVersion / cmake version と
+        # 一致させること（ズレると download fallback か失敗）。gatecrate#25 Gap2。
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;${ANDROID_PLATFORM:-android-35}" "build-tools;${ANDROID_BUILD_TOOLS:-35.0.0}" \
+            ${ANDROID_NDK:+"ndk;$ANDROID_NDK"} ${ANDROID_CMAKE:+"cmake;$ANDROID_CMAKE"}
+
+      - name: Cache Android dependencies
+        uses: actions/cache@v4
+        with:
+          path: .android-deps
+          key: android-deps-${{ hashFiles('scripts/prepare-android-dependencies.sh', 'scripts/prepare_android_dependencies.py') }}
+
+      - name: Prepare Android dependencies
+        run: sh scripts/prepare-android-dependencies.sh
+
+      - name: Resolve build metadata
+        id: meta
+        run: |
+          ROOT="$GITHUB_WORKSPACE" . scripts/version-env.sh
+          {
+            echo "version_name=$VERSION_NAME"
+            echo "version_code=$VERSION_CODE"
+            echo "short_sha=$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run tests and debug build
+        env:
+          ANDROID_PLATFORM: android-35
+          ANDROID_BUILD_TOOLS: 35.0.0
+          # Set BUILDCONFIG_PACKAGE and other project-specific vars in harness.config.sh
+        run: sh test.sh
+
+  gradle-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Install Android build tools
+        # NDK/CMake は ANDROID_NDK / ANDROID_CMAKE が設定されたときだけ install する。
+        # externalNativeBuild の ndkVersion / cmake version と一致させること。gatecrate#25 Gap2。
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;${ANDROID_PLATFORM:-android-35}" "build-tools;${ANDROID_BUILD_TOOLS:-35.0.0}" \
+            ${ANDROID_NDK:+"ndk;$ANDROID_NDK"} ${ANDROID_CMAKE:+"cmake;$ANDROID_CMAKE"}
+
+      - name: Build Gradle debug variants
+        # Customize Gradle tasks for your project's flavor/variant names
+        run: |
+          ./gradlew --no-daemon \
+            :app:assembleDebug \
+            :app:bundleRelease
+
+      - name: Assert native libs are packaged into the APK
+        # NDK ビルドのとき（NATIVE_LIB_NAMES 設定時）だけ実行。期待 ABI×.so が APK に同梱されたかを
+        # zip エントリで一次検証し、実機 sideload 前にパッケージング漏れを落とす。gatecrate#25 Gap2。
+        if: env.NATIVE_LIB_NAMES != ''
+        run: sh scripts/check-native-libs.sh

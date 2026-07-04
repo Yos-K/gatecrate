@@ -1,0 +1,21 @@
+# サンプル 因果ループ図（オンライン書店の事業ダイナミクス）
+# V 変数 / L from to +|-（＋同方向・－逆方向）/ LOOP id R|B vars 説明。ESフローとは別レイヤ。
+V demand   注文数
+V success  成約数
+V value    提供価値
+V satis    顧客満足
+V repeat   リピート率
+V load     同時負荷
+V latency  応答レイテンシ
+V failure  決済失敗数
+L demand   success +
+L success  value   +
+L value    satis   +
+L satis    repeat  +
+L repeat   demand  +
+L demand   load    +
+L load     latency +
+L latency  failure +
+L failure  success -
+LOOP R1 R demand,success,value,satis,repeat 成長エンジン: 成約→価値→満足→リピート→注文増 を自己増幅（全リンク＋＝強化）
+LOOP B1 B demand,load,latency,failure,success 過負荷による成長抑制: 注文増→負荷→レイテンシ→決済失敗増→成約減（failure→success が－＝バランス）

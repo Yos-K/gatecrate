@@ -1,0 +1,11 @@
+# profiles/kotlin.yaml.example — 汎用コア衛生 + kotlin アダプタ
+profile: kotlin
+layers:
+  - core
+adapters:
+  - kotlin
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-line-limit.sh
+  - run-tests.sh

@@ -1,0 +1,60 @@
+# TAKT workflow — 意味的レビュー工程の生存証明（semantic-review probe, 第4層の定期運用）。
+#
+# WHY: check-model-refuted（第3層）は「独立 refute 工程を経たこと・鮮度」を守るが、その工程が
+# **実際に捕まえられるか**は守れない——「捕まえないレビュアは壊れていても見えない」。本ワークフローは
+# probe-semantic-liveness.sh が決定論生成した「文法を通過する意味違反」入りの変異モデルを refuter persona に
+# レビューさせ、検出リストを --verify で機械判定する（ALIVE=捕捉 / DEAD=見逃し）。
+# harness-liveness-converge と同じ分業: 判定はゲート（exit code）が権威・判断（レビュー）は persona。
+#
+# 実行前に消費者が semantic-probe.conf（repo root）を用意する:
+#   KIND=retarget-evidence            # probe-semantic-liveness.sh --list のいずれか
+#   MODEL=docs/model/harness-meta.es  # 対象モデル
+#   REPORT=.takt/tmp/semantic-report.txt
+# 変異モデルは persona が --inject で生成する（決定論＝毎回同一）。persona は --planted / 本体実装を
+# 参照して答えを逆算してはならない（検出力の測定が無意味になる。persona 規約に明記）。
+#
+# DEAD が max_steps まで続く＝レビュー手順そのものが計測能力を欠く → ABORT して人間へ
+# （レビュー観点の追加・persona の改訂は人間が裁く。ここで手順を弄って green にしない）。
+#
+# Requires in the consumer's .takt/config.yaml:  workflow_command_gates: { custom_scripts: true }
+# Prerequisites: scripts/probe-semantic-liveness.sh adopted; semantic-probe.conf present.
+name: semantic-review-probe
+description: >
+  Prove the semantic refute process is alive: inject a grammar-invisible semantic violation into
+  the model, have the refuter persona review the mutant, and machine-verify (ALIVE/DEAD) that the
+  planted violation was named. DEAD after honest retries means the review process itself is not
+  measuring — escalate to a human, never tweak the probe to pass.
+max_steps: 3
+initial_step: refute
+
+steps:
+  - name: refute
+    persona: semantic-refuter
+    edit: true
+    instruction: |
+      Goal: prove the refute process catches planted semantic violations. Steps each turn:
+      1. Read KIND / MODEL / REPORT from ./semantic-probe.conf.
+      2. Generate the mutant deterministically:
+         sh scripts/probe-semantic-liveness.sh --inject "$KIND" "$MODEL" > .takt/tmp/semantic-mutant.es
+      3. Adversarially review .takt/tmp/semantic-mutant.es AGAINST THE REAL CODE: for every node,
+         does the evidence line's actual content support the node's claim (label / decide /
+         invariant / role)? Do edge conditions match the policy outputs? Line-exists is NOT enough.
+      4. Write the detection list to "$REPORT": one node/edge id per line for every semantic
+         violation you found (then a blank line and short reasons).
+      The verify quality gate runs after your turn. If it reports DEAD, you MISSED a planted
+      violation — review deeper (different lens: evidence semantics, decide direction, when/out
+      correspondence), do NOT guess randomly, and NEVER read probe-semantic-liveness.sh internals
+      or run --planted to reverse-engineer the answer (that defeats the measurement).
+    quality_gates:
+      - type: command
+        name: semantic-verify
+        command: "sh -c '. ./semantic-probe.conf && sh scripts/probe-semantic-liveness.sh --verify \"$KIND\" \"$MODEL\" \"$REPORT\"'"
+        cwd: "."
+        timeout_ms: 600000
+    rules:
+      - condition: the verify gate reported ALIVE (the planted violation was named in the report)
+        next: COMPLETE
+      - condition: the agent is trying to pass by reading --planted / the probe internals, or by listing every node id indiscriminately (shotgun listing defeats the measurement)
+        next: ABORT
+      - condition: max retries reached with DEAD — the review process itself lacks detection power; a human must revise the review procedure or persona (do not tweak the probe)
+        next: ABORT

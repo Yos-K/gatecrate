@@ -1,0 +1,11 @@
+# profiles/lean4.yaml.example — 汎用コア衛生 + lean4 アダプタ
+profile: lean4
+layers:
+  - core
+adapters:
+  - lean4
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-line-limit.sh
+  - run-tests.sh

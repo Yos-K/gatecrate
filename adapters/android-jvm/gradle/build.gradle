@@ -1,0 +1,6 @@
+// [Android-JVMアダプタ] ルートレベル build.gradle — Android Gradle Plugin (AGP) 宣言
+// Declares the AGP version. Customize agpVersion to match your project requirements.
+// See https://developer.android.com/build/releases/gradle-plugin for compatibility.
+plugins {
+    id "com.android.application" version "8.13.1" apply false
+}

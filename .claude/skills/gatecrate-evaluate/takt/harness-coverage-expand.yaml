@@ -1,0 +1,70 @@
+# TAKT workflow — BROADEN coverage: propose NEW verification for under-covered risk shapes.
+#
+# This is the Broaden sub-mode of the coverage-expansion loop (docs/design/expansion-loop.md) — the
+# judgment counterpart to Deepen. Deepen strengthens an EXISTING suite from a mechanical signal
+# (mutation survivors). Broaden asks the harder question: does newly changed code have a RISK SHAPE
+# (order/state, concurrency, branch/calc-heavy, input-space) that NO verification covers, and if so
+# which technique should be added? That is judgment, not an exit code — so this is a SEQUENCE of
+# persona steps (scan -> assess -> propose), like harness-evaluate-cycle, not a converge loop.
+#
+# It PROPOSES; it does not auto-add. Adding a verification is safe (the worst case is a redundant
+# test the pruning cycle later trims), so a human approves the proposal cheaply. The one irreducible
+# human gate: when a proposal rests on OBSERVED behaviour, a human classifies intent-vs-defect before
+# it is canonized — never freeze a bug as a spec.
+#
+# Prerequisites: a git repo with a base ref to diff against (DOC-less consumers OK — the technique-
+# selection procedure is carried by the coverage-scout persona). `gh`/tooling not required.
+name: harness-coverage-expand
+description: >
+  Broaden coverage: scan the code clusters changed since a base ref, assess each cluster's risk shape
+  against the verification it already has, and PROPOSE the technique to add for any risk-shaped but
+  under-covered cluster (PBT / stateful PBT / mutation / model check). Proposals only — a human
+  approves the addition, and classifies intent-vs-defect for any behaviour-derived proposal.
+max_steps: 6
+initial_step: scan
+
+steps:
+  - name: scan
+    persona: coverage-scout
+    edit: false
+    instruction: |
+      Identify the code clusters changed since the base ref (default origin/main; or the arg you are
+      given). Run `git diff --name-status <base> HEAD` and read the changed non-test source files.
+      Summarise each changed cluster: what it does, and the shape of its logic (does it hold STATE
+      across operations? branch/calculate heavily? parse untrusted input? run concurrently?). Do not
+      judge coverage yet — just map the changed surface.
+    rules:
+      - condition: the changed clusters have been identified and their logic shape summarised
+        next: assess
+
+  - name: assess
+    persona: coverage-scout
+    edit: false
+    instruction: |
+      For each changed cluster, decide its RISK SHAPE and whether existing verification covers it,
+      using the decision procedure in your persona (Q1 order/state, Q2 branch/calc, Q3 concurrency,
+      Q4 fragmentation). Check what already verifies the cluster (example tests? a PBT? a mutation
+      gate? nothing?). Flag as an EXPAND-CANDIDATE any cluster whose risk shape has NO matching
+      verification (e.g. order/state logic with only example tests and no stateful PBT). Explicitly
+      list the clusters you are NOT flagging (already covered, or no real risk shape) so this does not
+      inflate into "add everything".
+    rules:
+      - condition: every changed cluster is classified and at least one expand-candidate (risk shape with no matching verification) was found
+        next: propose
+      - condition: every changed cluster is already adequately covered or carries no real risk shape — nothing to add
+        next: COMPLETE
+
+  - name: propose
+    persona: coverage-scout
+    edit: true
+    instruction: |
+      For each expand-candidate, choose the technique per your persona's selection procedure and
+      write a concrete PROPOSAL: cluster, risk shape, technique (PBT / stateful PBT / mutation / model
+      check), why this technique (not another), and a short outline of the test/property to add. Do
+      NOT auto-add the test and do NOT canonize observed behaviour — if a proposal rests on how the
+      code currently behaves, mark it "needs human intent-vs-defect classification" so a human decides
+      whether that behaviour is the spec before it is locked in. Record the proposals (e.g. append to
+      a coverage-expansion section of a report or an issues list). A human approves the additions.
+    rules:
+      - condition: every expand-candidate has a technique proposal with rationale, and behaviour-derived ones are flagged for human classification
+        next: COMPLETE

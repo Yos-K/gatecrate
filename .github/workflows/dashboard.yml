@@ -1,0 +1,60 @@
+# [gatecrate self] ハーネスダッシュボードの静的スナップショット再生成
+# docs/harness-status.md（リポから見えるダッシュボード）を再生成し、表が変わったときだけ PR を開く。
+# main へ直接 push せず PR にするのはブランチ保護を尊重するため（提案 → 人間が承認、の gatecrate 流）。
+# 時刻はファイルに入れない（git の最終コミット日時が鮮度）ので、ゲート構造が変わった時だけ差分＝PR が出る。
+name: Dashboard
+
+on:
+  schedule:
+    - cron: '0 4 * * *'        # nightly: 万一の取りこぼしを拾う
+  push:
+    branches: [main]
+    paths:                     # ゲートが変わる場所に触れた merge でだけ即再生成
+      - 'core/scripts/**'
+      - 'adapters/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dashboard-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record a history point (only when the counts change) and regenerate
+        run: |
+          mkdir -p docs
+          today="$(sh core/scripts/render-harness-dashboard.sh --counts)"   # date\tprev\tdet\tadv\tunt\talive\tdead
+          last="$(tail -n1 docs/harness-history.tsv 2>/dev/null || true)"
+          # append a new dated point ONLY when the metrics differ from the last recorded row (no daily noise;
+          # the trend records change-points). Compare counts (fields 2-), ignoring the date.
+          if [ "$(printf '%s' "$today" | cut -f2-)" != "$(printf '%s' "$last" | cut -f2-)" ]; then
+            printf '%s\n' "$today" >> docs/harness-history.tsv
+          fi
+          DASHBOARD_HISTORY=docs/harness-history.tsv sh core/scripts/render-harness-dashboard.sh --snapshot > docs/harness-status.md
+
+      - name: Open a PR if the dashboard changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- docs/harness-status.md docs/harness-history.tsv; then
+            echo "dashboard unchanged — nothing to refresh."
+            exit 0
+          fi
+          BR="chore/dashboard-refresh-${{ github.run_id }}"
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$BR"
+          git add docs/harness-status.md docs/harness-history.tsv
+          git commit -m 'chore: refresh harness dashboard snapshot'
+          git push -u origin "$BR"
+          gh pr create --base main --head "$BR" \
+            --title 'chore: refresh harness dashboard snapshot' \
+            --body 'Automated refresh of docs/harness-status.md (gate type/liveness changed). Opened by .github/workflows/dashboard.yml; review and merge.'

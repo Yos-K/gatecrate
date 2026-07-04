@@ -1,0 +1,58 @@
+# [汎用core] harness-drift-check — 採用済みハーネススクリプトのドリフト検知（advisory・非ブロッキング）。
+#
+# WHY: 消費者が kit から採用したスクリプト（sync-manifest.yaml の consumed_scripts）は、pin した
+# kit バージョンと byte-identical であるべき（diff-zero 不変条件）。これが破れると週次の harness-sync が
+# 逆向きの diff を提案して同期機構の信頼を損なう。本ワークフローはその不変条件を毎 PR と週次で再検査し、
+# 破れていれば Step Summary と警告アノテーションで知らせる。
+#
+# 非ブロッキングの理由: ドリフトは「直ちにマージ不可」ではなく「kit へ還元 or 消費者で差し戻す」判断が
+# 要る状態。必須チェックには含めず、scripts/check-kit-drift.sh を advisory（exit 0）で走らせて緑のまま
+# 通知する。強制したくなれば同スクリプトに --strict を付ければ赤化できる（opt-in）。
+#
+# 設定: 検知対象の kit リポジトリ・pin バージョンは消費者の sync-manifest.yaml で宣言する
+# （ここにリポジトリ名はハードコードしない）。check-kit-drift.sh がそれを読む。
+#
+# Drop into the consumer at .github/workflows/harness-drift-check.yml.
+
+name: harness-drift-check
+
+on:
+  pull_request:
+    paths:
+      - 'sync-manifest.yaml'
+      - 'scripts/**'
+      - '.github/workflows/harness-drift-check.yml'
+  schedule:
+    # 週次（月曜 0:15 UTC）。harness-sync の直後に走らせ、同期 PR 起票直前のドリフト状況を可視化する。
+    - cron: '15 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Check consumed scripts drift against the pinned harness kit (advisory)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # advisory: 既定で exit 0。ドリフトがあっても緑のまま Step Summary に出す。
+          OUT="$(sh scripts/check-kit-drift.sh)"
+          printf '%s\n' "$OUT"
+          {
+            echo '### harness kit drift check (advisory)'
+            echo ''
+            echo '```'
+            printf '%s\n' "$OUT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # ドリフト行があれば GitHub の警告アノテーションも出す（赤化はしない）。
+          if printf '%s\n' "$OUT" | grep -q '  DRIFT '; then
+            echo "::warning title=harness kit drift::consumed scripts diverged from the pinned kit version — see job summary"
+          fi

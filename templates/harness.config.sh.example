@@ -1,0 +1,85 @@
+# shellcheck shell=sh  # sourced, not executed — declare target shell for shellcheck (SC2148)
+# harness.config.sh — consumer-specific values for gatecrate scripts.
+#
+# install.sh copies this to your repo root as `harness.config.sh`. Each kit script resolves the
+# repo root and then `. harness.config.sh` (if present), so project-specific values stay in the
+# consumer while the kit scripts stay generic and syncable.
+#
+# This is plain shell (sourced with `.`), NOT YAML — the scripts read environment variables, so
+# set them directly. Keep it free of secrets. Only set what you need; every variable has a default
+# in the script. Uncomment a line to override its default.
+
+# ============================================================
+# 汎用コア (core/) — 全プロファイルに同梱
+# ============================================================
+
+# --- check-file-line-limit.sh（言語非依存のファイル行数ゲート）---
+# FILE_LINE_LIMIT=300                          # 1ファイルの行数上限（既定: 300。FITNESS_MAX_LINES でも可）
+# FILE_LINE_NAMES="*.sh *.md"                  # 対象の find -name パターン（空白区切り・既定: "*.sh"）
+# FILE_LINE_PATHS="src scripts"                # 走査ルート（空白区切り・既定: "." = リポ全体）
+# FILE_LINE_EXCEPTIONS="scripts/file-line-exceptions.txt"  # 例外リスト（1行1パス・# はコメント）
+
+# --- probe-gate-liveness.sh（予防ゲートの生存証明）---
+# PROBE_GATES="scripts/check-no-committed-secrets.sh:secrets scripts/check-conventional-title.sh:title"
+#   "<repo相対パス>:<kind>" を空白/改行区切りで列挙。kind: title|secrets|filesize|hard-constraints。
+#   未設定なら kit 自身の3コアゲートを probe（後方互換）。
+
+# --- check-hard-constraints.sh（コンテンツ不変条件ゲート・無設定なら skip）---
+# HARD_CONSTRAINTS_FILE="scripts/hard-constraints.txt"  # forbid/require ルール定義
+
+# --- check-doc-currency.sh（EN/JA など対ドキュメントの同期ゲート）---
+# DOC_CURRENCY_BASE=origin/main                # 差分の基準 ref（既定: origin/main）
+# DOC_CURRENCY_SKIP=1                          # 片側だけの意図的編集を通す脱出口（理由を PR に記録）
+
+# --- check-diff-coverage.sh（差分カバレッジ ratchet・profile: brownfield）---
+#   テストの無い/希薄なレガシーの入口。レガシー本体は対象外で「このPRの変更行だけ」に被覆を要求する。
+#   消費側のテストで JaCoCo XML を生成してから本ゲートを回す（Kotlin/Android: kover or jacoco の XML）。
+# COVERAGE_REPORT=build/reports/kover/report.xml   # 必須: JaCoCo 形式の XML 報告パス
+# COVERAGE_FORMAT=jacoco                       # 既定 jacoco（現状これのみ対応）
+# DIFF_BASE=origin/main                        # 比較元 ref（既定: origin/main・無ければ HEAD~1）
+# DIFF_COVERAGE_THRESHOLD=80                   # 変更行被覆率の床 [%]（既定: 80・>= で通す）
+# DIFF_PATHSPEC="*.kt *.java"                  # diff 対象の pathspec（既定: "*.kt *.java"）
+
+# ============================================================
+# エージェントの仕様駆動学習ループ / cc-sdd 連携（任意）
+#   手順とモードの使い分け: docs/spec-driven-loop.md
+#   cc-sdd steering テンプレ: templates/kiro-steering/gatecrate-spec-test-loop.md
+#   （install.sh --with-cc-sdd で .kiro/steering/ に配置）
+# ============================================================
+
+# SPEC_LOOP_MODE=autonomous                    # autonomous（.kiro/specs を bootstrap）| expert-gated（既存仕様あり）
+# SPEC_TEST_MUTATION_CMD="sh scripts/run-mutation-tests.sh"  # validate-impl 後に回す survivor-strict mutation
+# SPEC_TEST_MUTATION_MAX_BLOCKS=3              # Stop hook の連続ブロック上限（超えたら force-through）
+
+# ============================================================
+# Android-JVM アダプタ (adapters/android-jvm/) — profile: standard / full
+# ============================================================
+
+# --- check-file-sizes.sh（Android 版ファイル行数ゲート・core 版とは別系統で FITNESS_MAX_LINES を読む）---
+# FITNESS_MAX_LINES=300                         # Java 1ファイルの行数上限（既定: 300）
+# FITNESS_EXCEPTIONS="scripts/fitness-exceptions.txt"  # 例外リスト
+
+# --- run-mutation-tests.sh / run-unit-tests.sh ---
+# BUILDCONFIG_PACKAGE=com.example.app.infrastructure   # BuildConfig スタブのパッケージ名
+# TARGET_CLASSES=com.example.app.domain.*,com.example.app.service.*  # mutation 対象クラス
+# TARGET_TESTS=com.example.app.*                # mutation を駆動するテスト
+# MUTATION_THRESHOLD=80                         # ratchet 床（下げるのは MAJOR 変更）
+# EXCLUDED_CLASSES="*Test,*Tests,*Property,*Properties,com.example.app.i18n.*"
+# 値だけで足りない場合のロジック注入点（複数行可）:
+# BUILDCONFIG_FIELDS="    public static final boolean PRO_FEATURES_ENABLED = false;
+#     public static final boolean BILLING_ENABLED = false;"   # スタブが公開すべきフィールド
+# EXTRA_MAIN_SOURCES="src/main/java/com/example/app/ui/SomeAndroidFreeHelper.java"  # 追加ソース
+
+# --- emulator-smoke.sh / capture-theme-screenshots.sh ---
+# APP_PACKAGE=com.example.app
+# APP_OPEN_ACTION=com.example.app.action.OPEN_TEXTS
+# APP_THEMES="light dark"
+# APP_THEME_PREF_KEY=app_theme
+
+# ============================================================
+# Python アダプタ (adapters/python/) — profile: python
+# ============================================================
+
+# COVERAGE_SOURCE=src                          # カバレッジ対象パッケージ/ディレクトリ
+# COVERAGE_THRESHOLD=95                         # カバレッジ床（%）
+# MUTATION_THRESHOLD=80                         # mutmut の床（%）

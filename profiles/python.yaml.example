@@ -1,0 +1,16 @@
+# profiles/python.yaml.example
+# 汎用コア衛生 + Python アダプタ（uv: pytest/coverage + mutmut）を導入するプロファイル
+# 用途: ロジックを持つ Python プロジェクト（uv 管理）
+# 根拠: core はスタック非依存、adapter は Python 固有のテスト/ミューテーションゲート
+
+profile: python
+layers:
+  - core
+adapters:
+  - python
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-line-limit.sh
+  - run-tests.sh
+  - run-mutation.sh

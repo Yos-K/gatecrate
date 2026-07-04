@@ -1,0 +1,63 @@
+# [汎用core] ハーネスダッシュボードの静的スナップショット再生成（消費者テンプレ）
+# Drop into a consumer at .github/workflows/dashboard.yml. install.sh は初期スナップショット
+# docs/harness-status.md を生成済み（リポからすぐ見える）。このワークフローは以後それを最新に保つ。
+#
+# docs/harness-status.md を再生成し、表（ゲートの型/生存/ROI判定）が変わったときだけ PR を開く。
+# main へ直接 push せず PR にするのはブランチ保護を尊重するため（提案 → 人間が承認）。
+# 時刻はファイルに入れない（git の最終コミット日時が鮮度）ので、構造が変わった時だけ差分＝PR が出る。
+#
+# 必要なリポ設定: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests"。
+name: Dashboard
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'          # 消費者のゲートは scripts/ に入る
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dashboard-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record a history point (only when the counts change) and regenerate
+        run: |
+          [ -f scripts/render-harness-dashboard.sh ] || { echo "renderer not installed; skipping."; exit 0; }
+          mkdir -p docs
+          today="$(sh scripts/render-harness-dashboard.sh --counts)"
+          last="$(tail -n1 docs/harness-history.tsv 2>/dev/null || true)"
+          if [ "$(printf '%s' "$today" | cut -f2-)" != "$(printf '%s' "$last" | cut -f2-)" ]; then
+            printf '%s\n' "$today" >> docs/harness-history.tsv   # 変化時だけ追記（毎日 PR を出さない）
+          fi
+          DASHBOARD_HISTORY=docs/harness-history.tsv sh scripts/render-harness-dashboard.sh --snapshot > docs/harness-status.md
+
+      - name: Open a PR if the dashboard changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- docs/harness-status.md docs/harness-history.tsv; then
+            echo "dashboard unchanged — nothing to refresh."
+            exit 0
+          fi
+          BR="chore/dashboard-refresh-${{ github.run_id }}"
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$BR"
+          git add docs/harness-status.md docs/harness-history.tsv
+          git commit -m 'chore: refresh harness dashboard snapshot'
+          git push -u origin "$BR"
+          gh pr create --base main --head "$BR" \
+            --title 'chore: refresh harness dashboard snapshot' \
+            --body 'Automated refresh of docs/harness-status.md. Opened by .github/workflows/dashboard.yml; review and merge.'

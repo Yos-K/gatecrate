@@ -1,0 +1,91 @@
+# TAKT workflow — run the OUTER (second-order) loop end to end: measure -> evaluate -> route.
+#
+# Shape (validated against TAKT's yaml-schema): unlike harness-liveness-converge (a single
+# converge-to-green step) and harness-config-derive, the outer loop is a SEQUENCE, not a
+# command-gated loop. Its steps transition on AI/text conditions (`rules`), which is exactly what
+# TAKT step transitions support. The deterministic parts (collect-gate-history, probe) are run by
+# the agent via its shell tools inside the steps; the judgment (2 axes, 5 verdicts, the
+# counterfactual trap) is the persona's. TAKT sequences and audits the pass; it does not supply
+# the judgment, and it never auto-executes a removal.
+#
+# This is the runnable form of ROADMAP P4 steps 4->5->6: measure the harness, apply
+# docs/harness-roi-evaluation.md, write a dated report, and route the actions. Repairs are handed
+# to harness-liveness-converge (which owns step-6 repair); removals/consolidations are filed as
+# human-approved proposals. One invocation = one trip around the outer loop.
+#
+# Prerequisites: collect-gate-history.sh + probe-gate-liveness.sh adopted (scripts/ in a consumer,
+# or core/scripts/ when evaluating gatecrate itself); `gh` authed for the firing/cost axis; some CI
+# history accrued (the evaluation needs evidence — without it, verdicts are "unconfirmed").
+name: harness-evaluate-cycle
+description: >
+  Run gatecrate's outer loop as one invocation: measure each gate's firing/cost and survival proof,
+  apply the harness-roi-evaluation two axes and five verdicts, write a dated report, and route the
+  actions (repairs to harness-liveness-converge; removals/consolidations as human-approved
+  proposals). The judgment is the persona's; TAKT sequences the steps and never auto-removes a gate.
+max_steps: 6
+initial_step: measure
+
+steps:
+  - name: measure
+    persona: harness-auditor
+    edit: false
+    instruction: |
+      Collect evidence only — NO judgment yet. Run these in the target repo (paths are scripts/<x>
+      in a consumer, or core/scripts/<x> when evaluating gatecrate itself):
+        - collect-gate-history.sh --limit 50 --group-map scripts/gate-groups.tsv
+            per-gate runs / fires / fire_rate / CI seconds. NOTE: no --workflow filter — the map spans
+            multiple workflows (mutation.yml / domain-model-check.yml / merge-integrity.yml / emulator
+            *.yml), so filtering to ci.yml would silently omit those logical gates. --group-map relabels
+            raw CI step names into logical gates (mutation / gradle-build / pr-title …) so setup steps
+            (Checkout, Set up Java) do not dilute the ROI signal; unmapped steps stay as raw rows. Needs
+            `gh`; if unavailable, record the firing/cost axis as "unconfirmed (needs gh)" rather than guessing.
+        - probe-gate-liveness.sh
+            survival proof of the prevention gates: ALIVE / DEAD per gate.
+        - git log --oneline -- docs/ | wc -l   and   ls .github/workflows/*.yml | wc -l
+            axis-2 maintenance-load signals (doc churn, workflow count).
+      Summarise as a table (gate, runs, fires, CI seconds, ALIVE/DEAD) plus the churn signals, and
+      cite each number's source. Do not assign verdicts here.
+    rules:
+      - condition: the evidence (firing/cost, survival proof, churn signals) has been collected and summarised with sources
+        next: evaluate
+
+  - name: evaluate
+    persona: harness-auditor
+    edit: true
+    instruction: |
+      Apply the ROI methodology — which your harness-auditor persona restates in full, so you do
+      NOT need any doc file present (in a vendored consumer docs/harness-roi-evaluation.md is usually
+      absent; read it only if it exists) — to the collected evidence, and write a dated report.
+        - Axis 1 (removal): removal-candidate needs ALL THREE — high cost AND zero uniqueness AND
+          (zero firing / risk gone). Cheap layers survive on cost alone. A prevention gate that
+          never fires but is ALIVE is WORKING — never delete it on "never fired" (the counterfactual
+          trap).
+        - Axis 2 (consolidation): for layers too cheap for axis-1 removal, weigh the maintenance-load
+          signals; flag overlap or manual-discipline dependence as consolidate-candidate (the remedy
+          is automate/merge, NOT remove). Explicitly list the cheap low-load layers you are keeping,
+          so axis 2 does not invert into flagging everything.
+        - Assign the five verdicts (keep / strengthen / consolidate-candidate / downgrade-to-advisory
+          / removal-candidate), each with a why->therefore and a primary-source link. Write
+          "unconfirmed (needs X)" where evidence is missing — never a blank or a guess.
+      Write the report to docs/evaluations/<DATE>.md (get DATE via `date +%F`).
+    rules:
+      - condition: the report is written, every layer has a verdict, and there is at least one non-keep verdict or a DEAD gate to act on
+        next: route
+      - condition: the report is written, every layer is keep and every gate is ALIVE — nothing to act on
+        next: COMPLETE
+
+  - name: route
+    persona: harness-auditor
+    edit: false
+    instruction: |
+      Route each actionable finding into step 6 — but do NOT execute removals or edit safety gates:
+        - DEAD gate, honestly repairable -> recommend running `harness-liveness-converge` (the
+          converge loop owns repair and excludes escalation-only gates). Do not repair here.
+        - strengthen -> name the focused test(s) to add (a coverage gap was found).
+        - consolidate-candidate -> describe the automation/merge and file it as a proposal.
+        - removal-candidate -> file it as a proposal; a HUMAN approves and removes via PR. Safety
+          gates (secrets, forbidden permissions) and escalation-only gates are never auto-removed.
+      Output the routed action list. Proposals are filed; humans approve the irreversible ones.
+    rules:
+      - condition: every actionable finding has been routed (repairs recommended, proposals filed)
+        next: COMPLETE

@@ -1,0 +1,15 @@
+# profiles/standard.yaml.example
+# minimal + JVM テスト runner / test-smell / test-balance を導入するプロファイル
+# 用途: ロジックを持つプロジェクトの基本線
+
+profile: standard
+layers:
+  - core
+  - adapters/android-jvm
+adapters:
+  - android-jvm
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-sizes.sh
+  - check-test-smells.sh

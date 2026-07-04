@@ -1,0 +1,21 @@
+# modularity-strength.tsv — Integration Strength の分類台帳（判断層の成果物・コミットして育てる）
+#
+# measure-modularity.sh がこのファイルを consume し、Balanced Coupling のバランス式
+#   BALANCE = (STRENGTH XOR DISTANCE) OR NOT VOLATILITY
+# の STRENGTH に使う。分類は意味論的判断（機械では計測できない）なので、modularity-review スキル
+# または人間が「証拠つきで」記入する。未分類エッジは既定レベル(model)で評価され、レポートに
+# 作業キューとして列挙される。
+#
+# 形式: src_pkg <TAB> dst_pkg <TAB> level <TAB> evidence
+# level は4段階（弱い→強い。共有される知識の量で決める）:
+#   contract   — 公開API/イベント契約だけを知る（統合契約経由。最も弱い）
+#   model      — 相手のドメインモデル（型・概念）を共有する
+#   functional — 相手のビジネスルール/機能の実装知識に依存する（片方を変えると両方直す）
+#   intrusive  — 相手の内部実装（private相当・内部状態・実装都合）へ踏み込む（最も強い）
+# evidence は判定根拠のコード位置（file:line）。証拠の無い分類は書かない（憶測記載の禁止）。
+#
+# 例:
+# com.example.order.core	com.example.billing.api	contract	BillingClient の公開IFのみ使用 (OrderService.java:88)
+# com.example.order.core	com.example.shared.model	model	Money/CustomerId 型を共有 (OrderService.java:12)
+# com.example.report.batch	com.example.order.core	functional	割引計算ロジックの複製に依存 (ReportJob.java:140)
+# com.example.legacy.sync	com.example.order.core	intrusive	OrderEntity の内部状態を直接書換 (SyncDao.java:66)

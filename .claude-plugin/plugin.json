@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "gatecrate",
+  "displayName": "gatecrate",
+  "description": "ポータブルなCI/品質ゲート構築キット＋ドメイン知識ツールキット(イベントストーミング(ES) living-model)。レガシー分析・ハーネス構築・ES図(.es)の図化・ROI評価のエージェントスキルとゲート群を提供。",
+  "author": {
+    "name": "Yos-K",
+    "url": "https://github.com/Yos-K"
+  },
+  "homepage": "https://github.com/Yos-K/gatecrate",
+  "repository": "https://github.com/Yos-K/gatecrate",
+  "license": "Apache-2.0",
+  "keywords": [
+    "ci",
+    "quality-gate",
+    "harness",
+    "mutation-testing",
+    "characterization",
+    "event-storming",
+    "domain-driven-design",
+    "legacy-refactoring"
+  ],
+  "skills": "./.claude/skills"
+}

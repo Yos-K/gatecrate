@@ -1,0 +1,61 @@
+name: es-complete
+description: >
+  ドメイン分析の成果物（6タブの源泉: AS-IS/TO-BE/コンテキストマップ/ビジネス分析/分析レポート）が揃うまで
+  audit→produce を反復する完成ループ。終了条件は check-es-deliverables の exit 0（＝機械判定の権威）。
+  「TO-BEを作らずcmapだけ」等の手抜きを構造的に止める。何を作るかの判断は es-analyst persona。TAKTはループ統率のみ。
+max_steps: 16
+initial_step: audit
+
+# 同じ欠落が埋まらない＝停滞を検出して打ち切る（コードから確定できない＝人間判断が要るサイン）
+loop_monitors:
+  - cycle:
+      - audit
+      - produce
+    threshold: 4
+    judge:
+      persona: es-analyst
+      instruction: es-loop-monitor
+      rules:
+        - condition: 健全（欠落が前周より減っている）
+          next: audit
+        - condition: 停滞（同じ欠落が埋められない・コードから確定できない）
+          next: ABORT
+          appendix: |
+            人間/オーナーの確認が要る残課題:
+            - {埋められなかった成果物と理由}
+
+steps:
+  # 1) 成果物の完全性を監査。全部揃って文法も通れば完了。
+  - name: audit
+    edit: false
+    persona: es-analyst
+    instruction: es-deliverables-audit
+    provider_options:
+      claude:
+        allowed_tools:
+          - Read
+          - Bash
+          - Glob
+    rules:
+      - condition: check-es-deliverables が ERROR=0（AS-IS/TO-BE/cmap/ビジネス分析源泉/分析レポートが揃い、文法も通る）
+        next: COMPLETE
+      - condition: 欠落（D2 TO-BE無し / D3 cmap無し / D4 biz無し / D5 分析md無し / D6 文法違反）がある
+        next: produce
+
+  # 2) 欠落していた成果物を作る（TO-BEを省略しない）。終わったら audit へ戻る。
+  - name: produce
+    edit: true
+    persona: es-analyst
+    instruction: es-produce-missing
+    provider_options:
+      claude:
+        allowed_tools:
+          - Read
+          - Write
+          - Edit
+          - Bash
+          - Grep
+          - Glob
+    rules:
+      - condition: 欠落していた成果物を作った（次の audit で再判定する）
+        next: audit

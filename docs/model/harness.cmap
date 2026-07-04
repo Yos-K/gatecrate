@@ -1,0 +1,14 @@
+# gatecrate 自身のコンテキストマップ — BC はアクター＋同一性キー＋語彙で導出（consumer #0 ドッグフード）
+BC bc_hygiene 衛生・文法ゲート群 | kind=supporting | domain=一階ループ（コードを検査する） | aggregates=違反 | summary=PRごとにコード・文書の違反を棄却する予防/検出ゲート群（title・secrets・行数・POSIX・doc-currency・merge-integrity 等）。 | discuss=導出根拠: 同一性=検査対象パス、語彙=違反/棄却/免除、アクター=PR作成者。決めること: doc-currency の正当な片側編集の免除経路（PR単位のescape無し）。
+BC bc_quality コード品質計測 | kind=supporting | domain=一階ループ（コードを検査する） | aggregates=結合エッジ | summary=複雑度・結合・Balanced Coupling を計測し、悪化だけを ratchet（modularity-baseline）で止める。 | discuss=導出根拠: 同一性=パッケージ/エッジ、語彙=RED/ratchet/baseline、アクター=リファクタ実施者。
+BC bc_meta 二階ループ（ハーネス自己評価） | kind=core | domain=二階ループ（ハーネスを検査する） | aggregates=ゲート;発火履歴 | es=harness-meta-es.html | summary=ゲート自体の型・生存・ROIを評価し、剪定候補を人間へ提案する。gatecrate の最も固有な能力（発火0の予防ゲートは壊れていても見えない、という死角への回答）。 | discuss=導出根拠: 同一性=ゲート名、語彙=ALIVE/DEAD/keep/removal-candidate、アクター=メンテナ。
+BC bc_es ドメイン知識ツールキット | kind=core | domain=ドメイン知識（モデルを育てる） | aggregates=ESモデル | summary=.es/.cmap を源泉に文法・情報完全性・evidence・TO-BE達成(coverage)を機械保証し、HTML へ決定論射影する（本マップ自身もこの BC の成果物）。 | discuss=導出根拠: 同一性=ノードid、語彙=event/aggregate/evidence/TO-BE、アクター=ドメイン分析者。
+BC bc_dist 配布・同期 | kind=supporting | domain=配布（消費者へ届ける） | aggregates=採用集合 | summary=install/plugin/sync-manifest でゲートを消費者へ配布し、更新を PR で伝播する（fire-and-forget が既定・sync は opt-in）。 | discuss=導出根拠: 同一性=スクリプトパス+kit版タグ、語彙=profile/consumed_scripts/drift、アクター=消費者オーナー。
+EXT ext_gha GitHub Actions | summary=CI実行・スケジュール・PR作成を担う外部実行基盤。GITHUB_TOKEN の再帰防止などの制約もそのまま受ける。
+EXT ext_consumer 消費者リポジトリ | summary=ゲートを採用する外部プロジェクト（localmd-reader / cps-meta 等）。
+REL bc_meta CS bc_hygiene | key=ゲート名（スクリプトbasename） | reason=二階ループは一階ゲート群を評価対象として消費する（型・生存・ROI）。
+REL bc_meta CS bc_quality | key=ゲート名 | reason=計測系ゲートも分類・ROI評価の対象（advisory は「信号が消費されるか」を人間判断）。
+REL bc_meta CS bc_es | key=ゲート名 | reason=ESゲート群も同様に評価対象（本モデルを守るゲート自身が評価される）。
+REL bc_meta Conformist ext_gha | key=workflow実行ID | reason=定期実行・自動PR作成は GitHub Actions のモデルに順応（自前抽象なし）。
+REL bc_dist CS bc_hygiene | key=スクリプトパス | reason=配布は全BCのゲート群（衛生・品質計測・二階ループ・ES）を成果物として運ぶ。RELは代表として衛生に張る（各BCへ4本張ると図が読めなくなるため）。
+REL ext_consumer CS bc_dist | key=kit版タグ+consumed_scripts | reason=消費者は配布・同期の顧客（更新は opt-in の PR で受け取る）。

@@ -1,0 +1,73 @@
+# TAKT workflow — DEEPEN coverage: kill surviving mutants until the mutation gate is clean.
+#
+# This is the Deepen sub-mode of the coverage-expansion loop (docs/design/expansion-loop.md) — the
+# ADDITIVE counterpart to harness-evaluate-cycle's pruning. A surviving mutant is a precise,
+# mechanical signal that a fault at that line would NOT be caught: a coverage gap. The fix is to add
+# a focused test that kills it, strengthening the suite's detection power.
+#
+# Shape (same family as gatecrate-setup's mutation-config loop): a single agent step guarded by a
+# `type: command` quality gate. TAKT runs run-mutation.sh after the step; on failure it re-invokes
+# the SAME step with the surviving-mutant list; the agent adds ONE killing test and the gate re-runs
+# until it exits 0 (no survivors / score at the ratcheted floor). The judgment — killable survivor
+# (add a test) vs equivalent mutant (exclude with a reason) — is the persona's; TAKT only loops.
+# It DIFFERS from the setup-time mutation-config loop in purpose: that one derives config to get a
+# gate green the first time; this one is the recurring growth of coverage as code evolves.
+#
+# Requires in the consumer's .takt/config.yaml:  workflow_command_gates: { custom_scripts: true }
+#
+# Prerequisites — the gate MUST be SURVIVOR-STRICT (exit non-zero while ANY survivor remains), or this
+# loop is meaningless: it would COMPLETE on the first exit 0 without adding a test.
+#   - rust/cargo-mutants: strict natively (survivors==0 to pass). Use `sh scripts/run-mutation.sh`. ✓
+#   - FLOOR-BASED gates (python/mutmut, go, typescript, kotlin/PITest) exit 0 once `score >= floor`,
+#     so they pass WITH survivors. For the deepen pass you must run them strict — set the floor to 100
+#     (e.g. MUTATION_THRESHOLD=100) so any survivor fails; the persona's exclusion ledger keeps
+#     equivalent mutants from making 100% unreachable. Edit the command below to add that env.
+#   - android-jvm vendors the script as `scripts/run-mutation-tests.sh` (NOT run-mutation.sh) — change
+#     the command's script name for that adapter.
+# Also: the mutation tooling on PATH and the test suite building.
+# (A portable `require-zero-survivors` flag across all adapter scripts is a tracked follow-up — see
+#  docs/design/expansion-loop.md.)
+name: harness-coverage-deepen
+description: >
+  Deepen coverage by killing surviving mutants until the mutation gate exits 0. One agent step adds
+  focused tests (one per turn), guarded by a command gate running run-mutation.sh; each surviving
+  mutant fed back drives one new test. Strengthens detection power — never excludes a killable mutant
+  or lowers a floor to pass. The additive half of the outer loop (pruning is harness-evaluate-cycle).
+max_steps: 10
+initial_step: deepen
+
+steps:
+  - name: deepen
+    persona: coverage-deepener
+    edit: true
+    instruction: |
+      Goal: make `sh scripts/run-mutation.sh` exit 0 by adding focused tests that KILL surviving
+      mutants — strengthening coverage — WITHOUT excluding a killable mutant or lowering a floor. The
+      mutation gate runs the script for you after each turn; you do not run it yourself. When it
+      fails you receive the surviving-mutant list (file:line + the mutation, e.g. "replace + with -",
+      "delete !", "replace > with >="). Act per this map, then stop and let the gate re-run:
+
+      - A KILLABLE survivor (the mutation changes observable behaviour): add ONE focused test that
+        exercises the exact line/branch with an assertion that FAILS under the mutation and passes on
+        the real code. One test per turn, so each gate result maps to one mutant. Never exclude a
+        killable survivor to pass.
+      - An EQUIVALENT mutant (the mutation cannot change any observable result — e.g. a logging-only
+        line, an unreachable default): record it in the gate's exclusion ledger
+        (`Cargo.toml [package.metadata.mutants] exclude`, or PITest EXCLUDED_CLASSES) WITH a one-line
+        reason. Use this only when you are sure it is truly equivalent.
+      - If the gate has a floor (PITest MUTATION_THRESHOLD) and it is now green above the floor,
+        ratchet the floor UP to at or just below the achieved score (never down).
+
+      Read the fed-back mutant literally — it names the exact file, line, and mutation; do not guess.
+      When the gate exits 0 (no killable survivors remain), finalize — you are done.
+    quality_gates:
+      - type: command
+        name: mutation-gate
+        command: "sh scripts/run-mutation.sh"
+        cwd: "."
+        timeout_ms: 1200000
+    rules:
+      - condition: the mutation gate passed and the new tests kill real survivors (coverage was strengthened, no killable mutant excluded, no floor lowered)
+        next: COMPLETE
+      - condition: the gate can only pass by excluding a killable mutant or lowering the floor (not an honest coverage gain)
+        next: ABORT

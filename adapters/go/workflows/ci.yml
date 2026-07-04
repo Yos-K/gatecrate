@@ -1,0 +1,60 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * *'   # B: nightly full mutation on the trunk (docs/mutation-strategy.md §5)
+permissions:
+  contents: read
+jobs:
+  fitness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - name: Validate pull request title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | sh scripts/check-conventional-title.sh
+      - name: Enforce per-file line count limit
+        env: { FILE_LINE_PATHS: "internal scripts" }
+        run: sh scripts/check-file-line-limit.sh
+      - name: Scan for committed secrets
+        run: sh scripts/check-no-committed-secrets.sh
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.21' }
+      - name: Tests + coverage gate
+        run: sh scripts/run-tests.sh
+
+  mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.21' }
+      - name: Install gremlins
+        run: go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
+      - name: Mutation gate
+        # A+B (docs/mutation-strategy.md): PR -> diff-scoped (fast); push to main / nightly schedule -> full.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            MUTATION_SCOPE=diff MUTATION_DIFF_BASE="origin/$BASE_REF" sh scripts/run-mutation.sh
+          else
+            MUTATION_SCOPE=full sh scripts/run-mutation.sh
+          fi
+
+      - name: Harness dashboard (job summary)
+        # Render gate type / liveness / ROI verdict to the run Summary page (docs/harness-dashboard.md).
+        # Guarded: no-op if the renderer was not installed (e.g. minimal profile). Never fails the build.
+        if: always()
+        run: |
+          [ -f scripts/render-harness-dashboard.sh ] || exit 0
+          sh scripts/render-harness-dashboard.sh >> "$GITHUB_STEP_SUMMARY"

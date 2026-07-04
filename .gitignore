@@ -1,0 +1,8 @@
+# macOS Finder メタデータ（過去に4本が誤って追跡されていた実績への再発防止）
+.DS_Store
+
+# 計測・ビルドの生成物（measure-*/es-coverage 等が build/quality に書く）
+build/
+
+# IDE (Eclipse Buildship) local settings — contains machine-local paths
+**/.settings/

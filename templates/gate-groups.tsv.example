@@ -1,0 +1,38 @@
+# gate-groups.tsv.example — logical-gate map template for collect-gate-history.sh --group-map
+#
+# WHY: collect-gate-history.sh groups CI runs by raw CI STEP name by default, so real quality
+# gates (e.g. "Run mutation tests …") and setup steps (e.g. "Checkout", "Set up Java …") land in
+# the same table and dilute the ROI signal for the second-order (harness self-evaluation) loop.
+# This map relabels step names to LOGICAL gates (mutation / build / test / pr-title …) before
+# counting, so the evaluation focuses on the gates that actually matter.
+#
+# FORMAT: <step_pattern>\t<logical_gate>   ONE TAB between the columns (not spaces).
+#   - step_pattern is a glob (only `*` wildcard; matched against the WHOLE step name)
+#   - lines starting with `#` and blank lines are ignored
+#   - rules are applied top-to-bottom; FIRST match wins
+#   - unmapped steps are kept as their raw row (nothing is hidden), so you can grow this map
+#     incrementally as new steps appear
+#
+# USAGE (do NOT narrow with --workflow if your gates span multiple workflow files; narrowing would
+# silently drop logical gates defined in other workflows):
+#   sh scripts/collect-gate-history.sh --limit 50 --group-map scripts/gate-groups.tsv
+#
+# HOW TO ADAPT: copy this to scripts/gate-groups.tsv in your repo and replace the GENERIC example
+# rows below with patterns matching YOUR actual CI step names (see them in your workflow YAML or in
+# `collect-gate-history.sh` output before mapping). The rows below are illustrative placeholders.
+
+# --- PR hygiene / preventive gates ---
+Validate pull request title*	pr-title
+Scan for committed secrets*	secrets
+Enforce per-file line count*	line-limit
+Enforce harness*constraints*	harness-constraints
+
+# --- build / test gates ---
+Run*unit*test*	unit-test
+Run*tests*	test-bundle
+Build*	build
+
+# --- detection gates (dedicated workflows) ---
+Run mutation tests*	mutation
+Model-check*	domain-model
+Verify PR head*	merge-integrity

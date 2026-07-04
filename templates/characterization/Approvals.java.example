@@ -1,0 +1,89 @@
+// templates/characterization/Approvals.java.example
+//
+// Copy into your test sources as `src/test/java/characterization/Approvals.java` (drop the
+// `.example`). Java variant of the golden-master (approval) helper for pure-Java legacy projects
+// (use Approvals.kt instead for Kotlin/Android). Dependency-free — java.nio only, JDK 11+ — so it
+// compiles with your existing javac/Maven/Gradle build with no extra library.
+//
+// How it works (the golden-master loop):
+//   1. Your test computes an output string and calls Approvals.verify(output, "SomeName").
+//   2. First run: no <SomeName>.approved.txt exists -> it writes <SomeName>.received.txt and FAILS.
+//   3. You REVIEW the received file. Is this the behavior to lock in? (Beware the characterization
+//      trap: do not approve a bug as the spec — see README.md.)
+//   4. If correct, approve it: `mv ...received.txt ...approved.txt` (or approve-characterization.sh).
+//      Commit ONLY the .approved.txt. The check-no-received-approvals gate rejects committed
+//      .received.* so an un-reviewed snapshot can never enter the repo as the spec.
+//   5. Later runs: actual is compared to approved; any difference FAILS -> you changed behavior.
+//      During refactoring that failure is your safety net.
+
+package characterization;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+public final class Approvals {
+
+    private Approvals() {
+    }
+
+    // Approved/received files live here (repo-root relative; the build runs from the repo root).
+    // Override with -Dapprovals.dir=... if your layout differs.
+    private static final Path DIR =
+            Paths.get(System.getProperty("approvals.dir", "src/test/resources/approved"));
+
+    /**
+     * Pin {@code actual} against the approved snapshot named {@code name}. Throws AssertionError
+     * (fails the test) when no approved file exists yet, or when behavior drifted from the approved
+     * snapshot. On any mismatch it writes &lt;name&gt;.received.txt for review.
+     */
+    public static void verify(String actual, String name) {
+        try {
+            Files.createDirectories(DIR);
+            Path approved = DIR.resolve(name + ".approved.txt");
+            Path received = DIR.resolve(name + ".received.txt");
+            String normalized = normalize(actual);
+
+            if (!Files.exists(approved)) {
+                write(received, normalized);
+                throw new AssertionError(
+                        "No approved snapshot for '" + name + "'. Wrote " + received + ".\n"
+                                + "  Review it; if it is the behavior to lock in, approve:\n"
+                                + "    mv '" + received + "' '" + approved + "'"
+                                + "   (or: sh scripts/approve-characterization.sh " + name + ")\n"
+                                + "  Commit only the .approved.txt. (Do not approve a bug — see README.)");
+            }
+
+            String expected = normalize(Files.readString(approved));
+            if (!expected.equals(normalized)) {
+                write(received, normalized);
+                throw new AssertionError(
+                        "Characterization mismatch for '" + name + "': behavior changed vs approved.\n"
+                                + "  Inspect:  diff '" + approved + "' '" + received + "'\n"
+                                + "  If INTENDED, re-approve. If not, your edit broke behavior — revert it.");
+            }
+            // Matched: drop any stale received so it never lingers (and never gets committed).
+            Files.deleteIfExists(received);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static String normalize(String s) {
+        String t = s.replace("\r\n", "\n");
+        int end = t.length();
+        while (end > 0 && t.charAt(end - 1) == '\n') {
+            end--;
+        }
+        return t.substring(0, end) + "\n";
+    }
+
+    private static void write(Path path, String content) throws IOException {
+        if (path.getParent() != null) {
+            Files.createDirectories(path.getParent());
+        }
+        Files.writeString(path, content);
+    }
+}

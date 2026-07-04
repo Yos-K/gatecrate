@@ -1,0 +1,11 @@
+# profiles/go.yaml.example — 汎用コア衛生 + go アダプタ（test/coverage ゲート）
+profile: go
+layers:
+  - core
+adapters:
+  - go
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-line-limit.sh
+  - run-tests.sh

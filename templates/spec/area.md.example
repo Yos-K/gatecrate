@@ -1,0 +1,38 @@
+# Spec: <Area name>
+
+Target code: `src/<path>.ts` ／ Tests: `src/<path>.test.ts`
+Related requirements: `.kiro/specs/<feature>/requirements.md` (<ids>)
+
+One-paragraph description of what this area guarantees (e.g. an AlwaysValid value object whose
+factory is the only construction path, returning a Result rather than throwing).
+
+## Rules
+
+| ID | Rule | intent/defect |
+|---|---|---|
+| R-1 | `invariant "..."` | intent (req X) |
+| R-2 | `policy "..." when <Event>` | intent (req Y) |
+| R-3 | `error <Name> "..."` | intent (req Z) |
+
+## Provenance note (what mutation/PBT surfaced)
+
+If a rule was discovered as a test blind spot (a surviving mutant), say so here — it is the most
+valuable kind of rule to write down. Example:
+- **R-3 was not pinned by any test**: a surviving mutant showed `<behaviour>` was unverified; the
+  test below now kills it.
+
+## Traceability (rule -> test [-> model])
+
+```
+R-1 -> test: "<the it() description>"            (<file>.test.ts)
+R-2 -> test: "<the it() description>"
+R-3 -> test: "<the it() description>"            <- was a blind spot
+model: N/A (pure input-space invariant)   |   candidate (order/concurrency rule; no model tooling yet)
+```
+
+A rule with no reflection is a TODO, not a spec. A test with no rule ID is unmoored — give it one.
+
+## Known residual mutants (equivalent / low-value — intentionally not chased)
+
+List survivors you decided NOT to kill, with the reason (equivalent mutant, brittle string-literal
+assertion, etc.), so a future reader does not waste effort. Do not lower the floor to hide them.

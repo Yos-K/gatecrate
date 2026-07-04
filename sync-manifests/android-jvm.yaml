@@ -1,0 +1,108 @@
+# sync-manifests/android-jvm.yaml
+# sync-manifest 方式: 同期対象ファイルのホワイトリスト（Android-JVM スタック向け）
+#
+# このファイルは gatecrate 側のマスター定義。
+# sync-check.sh と sync-propose.yml がこのリストを読み、
+# 消費側プロジェクトへ同期対象ファイルを特定する。
+#
+# 固有設定（templates/, profiles/）は絶対に含めない。
+# ホワイトリスト方式 = 列挙されていないパスは構造上同期不可能。
+
+sync_target:
+  adapter: android-jvm
+
+  # 汎用コア（core/scripts/ → インストール先の scripts/ にコピー済み）
+  core_scripts:
+    - core/scripts/check-conventional-title.sh
+    - core/scripts/check-no-committed-secrets.sh
+    - core/scripts/check-file-line-limit.sh
+    - core/scripts/probe-gate-liveness.sh
+    - core/scripts/collect-gate-history.sh
+    - core/scripts/render-harness-dashboard.sh
+    - core/scripts/classify-gate-type.sh
+    - core/scripts/gate-roi-verdict.sh
+    - core/scripts/check-doc-currency.sh
+    - core/scripts/check-rule-doc-currency.sh
+    - core/scripts/check-kit-drift.sh
+    - core/scripts/check-merge-integrity.sh
+    - core/scripts/check-hard-constraints.sh
+    - core/scripts/check-mutation-escalation.sh
+    - core/scripts/mutation-scope.sh
+    - core/scripts/check-gate-tests.sh
+    - core/scripts/es-lint.sh
+    - core/scripts/es-render.sh
+
+    - core/scripts/es-lint-info.sh
+    - core/scripts/es-cmap-lint.sh
+    - core/scripts/check-es-evidence.sh
+
+    - core/scripts/check-es-deliverables.sh
+    - core/scripts/check-jargon.sh
+    - core/scripts/es-render-html.sh
+    - core/scripts/es-render-cmap-html.sh
+    - core/scripts/es-coverage.sh
+    - core/scripts/check-es-assertions.sh
+    - core/scripts/check-diff-coverage.sh
+    - core/scripts/check-no-received-approvals.sh
+    - core/scripts/check-bc-domain.sh
+    - core/scripts/check-evidence-resolves.sh
+    - core/scripts/check-term-relations.sh
+    - core/scripts/check-model-refuted.sh
+    - core/scripts/probe-semantic-liveness.sh
+    - core/scripts/pr-preflight.sh
+    - core/scripts/check-third-party-notices.sh
+    - core/scripts/check-release-version-name.sh
+    - core/scripts/setup-branch-protection.sh
+    - core/scripts/measure-complexity.sh
+    - core/scripts/measure-coupling.sh
+    - core/scripts/measure-modularity.sh
+    - core/scripts/check-modularity-ratchet.sh
+    - core/scripts/quality/complexity-ruleset.xml
+    - core/scripts/check-test-compiles.sh
+    - core/scripts/check-posix-portability.sh
+    - core/scripts/check-domain-model.sh
+    - core/scripts/version-check.sh
+    - core/scripts/version-env.sh
+    - core/scripts/version-show.sh
+    - core/scripts/start-work.sh
+    - core/scripts/prepare-play-store-screenshot.sh
+    - core/scripts/ResizePng.java
+    - core/scripts/StripImageMetadata.java
+
+  # Android-JVM アダプタ（adapters/android-jvm/scripts/ → インストール先の scripts/ にコピー済み）
+  adapter_scripts:
+    - adapters/android-jvm/scripts/android-dependency-env.sh
+    - adapters/android-jvm/scripts/android-kotlin-compile.sh
+    - adapters/android-jvm/scripts/build-free-debug-apk.sh
+    - adapters/android-jvm/scripts/build-pro-debug-apk.sh
+    - adapters/android-jvm/scripts/build-release-aab.sh
+    - adapters/android-jvm/scripts/build-release-apk.sh
+    - adapters/android-jvm/scripts/build-signed-release.sh
+    - adapters/android-jvm/scripts/capture-debug-screenshot.sh
+    - adapters/android-jvm/scripts/capture-play-store-screenshot.sh
+    - adapters/android-jvm/scripts/capture-theme-screenshots.sh
+    - adapters/android-jvm/scripts/check-file-sizes.sh
+    - adapters/android-jvm/scripts/check-native-libs.sh
+    - adapters/android-jvm/scripts/check-release-basics.sh
+    - adapters/android-jvm/scripts/check-test-smells.sh
+    - adapters/android-jvm/scripts/create-release-keystore.sh
+    - adapters/android-jvm/scripts/emulator-smoke.sh
+    - adapters/android-jvm/scripts/export-play-store-feature-graphic.sh
+    - adapters/android-jvm/scripts/export-play-store-icon.sh
+    - adapters/android-jvm/scripts/ExportPlayStoreFeatureGraphic.java
+    - adapters/android-jvm/scripts/ExportPlayStoreIcon.java
+    - adapters/android-jvm/scripts/prepare-android-dependencies.sh
+    - adapters/android-jvm/scripts/prepare_android_dependencies.py
+    - adapters/android-jvm/scripts/run-mutation-tests.sh
+    - adapters/android-jvm/scripts/run-unit-tests.sh
+    - adapters/android-jvm/scripts/smoke-debug-app.sh
+    - adapters/android-jvm/scripts/test-balance-report.sh
+    - adapters/android-jvm/scripts/version-apply-manifest.sh
+    - adapters/android-jvm/scripts/version-bump.sh
+    - adapters/android-jvm/scripts/version-code-bump.sh
+
+# 固有設定は構造上同期対象外（ホワイトリスト方式）:
+#   templates/ — 消費側が管理するため列挙しない（上書き禁止）
+#   profiles/  — 消費側が管理するため列挙しない（上書き禁止）
+# ホワイトリストに含まれないパスは sync-check.sh / sync-propose.yml が書けない。
+# ブラックリスト（除外指定）でなくホワイトリスト（許可列挙）が保証の核。

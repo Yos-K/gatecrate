@@ -1,0 +1,56 @@
+# sync-manifests/go.yaml — whitelist for the go stack.
+# Project-specific config (harness.config.sh, build manifests) is never included.
+sync_target:
+  adapter: go
+  core_scripts:
+    - core/scripts/check-conventional-title.sh
+    - core/scripts/check-no-committed-secrets.sh
+    - core/scripts/check-file-line-limit.sh
+    - core/scripts/probe-gate-liveness.sh
+    - core/scripts/collect-gate-history.sh
+    - core/scripts/render-harness-dashboard.sh
+    - core/scripts/classify-gate-type.sh
+    - core/scripts/gate-roi-verdict.sh
+    - core/scripts/check-doc-currency.sh
+    - core/scripts/check-rule-doc-currency.sh
+    - core/scripts/check-kit-drift.sh
+    - core/scripts/check-merge-integrity.sh
+    - core/scripts/check-hard-constraints.sh
+    - core/scripts/check-mutation-escalation.sh
+    - core/scripts/mutation-scope.sh
+    - core/scripts/check-gate-tests.sh
+    - core/scripts/es-lint.sh
+    - core/scripts/es-render.sh
+
+    - core/scripts/es-lint-info.sh
+    - core/scripts/es-cmap-lint.sh
+    - core/scripts/check-es-evidence.sh
+
+    - core/scripts/check-es-deliverables.sh
+    - core/scripts/check-jargon.sh
+    - core/scripts/es-render-html.sh
+    - core/scripts/es-render-cmap-html.sh
+    - core/scripts/es-coverage.sh
+    - core/scripts/check-es-assertions.sh
+    - core/scripts/check-diff-coverage.sh
+    - core/scripts/check-no-received-approvals.sh
+    - core/scripts/check-bc-domain.sh
+    - core/scripts/check-evidence-resolves.sh
+    - core/scripts/check-term-relations.sh
+    - core/scripts/check-model-refuted.sh
+    - core/scripts/probe-semantic-liveness.sh
+    - core/scripts/pr-preflight.sh
+    - core/scripts/check-third-party-notices.sh
+    - core/scripts/check-release-version-name.sh
+    - core/scripts/setup-branch-protection.sh
+    - core/scripts/measure-complexity.sh
+    - core/scripts/measure-coupling.sh
+    - core/scripts/measure-modularity.sh
+    - core/scripts/check-modularity-ratchet.sh
+    - core/scripts/quality/complexity-ruleset.xml
+    - core/scripts/check-test-compiles.sh
+    - core/scripts/check-posix-portability.sh
+    - core/scripts/check-domain-model.sh
+  adapter_scripts:
+    - adapters/go/scripts/run-tests.sh
+    - adapters/go/scripts/run-mutation.sh

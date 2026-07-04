@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "gatecrate",
+  "owner": {
+    "name": "Yos-K"
+  },
+  "plugins": [
+    {
+      "name": "gatecrate",
+      "source": "./",
+      "displayName": "gatecrate",
+      "description": "CI/品質ゲート構築キット＋ドメイン知識ツールキット(イベントストーミング(ES) living-model)。ハーネス構築・レガシー分析・ES図化のスキルを提供。",
+      "keywords": ["ci", "quality-gate", "harness", "event-storming", "ddd"]
+    }
+  ]
+}

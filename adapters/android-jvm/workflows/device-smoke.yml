@@ -1,0 +1,103 @@
+# [Android-JVMアダプタ] デバイス/エミュレータスモークテストワークフロー（手動トリガー）
+# Installs the debug APK on an emulator and runs the smoke ladder (L2/L3/L4).
+# See adapters/android-jvm/README.md for required harness.config.sh variables.
+name: Device Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: device-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  launch-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve build metadata
+        id: meta
+        run: |
+          ROOT="$GITHUB_WORKSPACE" . scripts/version-env.sh
+          {
+            echo "version_name=$VERSION_NAME"
+            echo "version_code=$VERSION_CODE"
+            echo "short_sha=$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build debug APK
+        # Customize the Gradle task and flavor for your project
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Launch app on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            ART_DIR="$GITHUB_WORKSPACE/smoke-artifacts"
+            mkdir -p "$ART_DIR"
+            capture_evidence() {
+              adb logcat -d -v time > "$ART_DIR/logcat.txt" 2>/dev/null || true
+              adb exec-out screencap -p > "$ART_DIR/screen.png" 2>/dev/null || true
+            }
+            # Customize the APK path and package name for your project
+            adb install -r app/build/outputs/apk/debug/app-debug.apk || {
+              capture_evidence
+              exit 1
+            }
+            APP_PACKAGE="${APP_PACKAGE}" \
+            APP_OPEN_ACTION="${APP_OPEN_ACTION}" \
+            APP_EXTRA_TITLES="${APP_EXTRA_TITLES}" \
+            APP_EXTRA_SOURCES="${APP_EXTRA_SOURCES}" \
+            APP_EXTRA_TEXTS="${APP_EXTRA_TEXTS}" \
+            sh scripts/emulator-smoke.sh
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: device-smoke-evidence-v${{ steps.meta.outputs.version_name }}-${{ steps.meta.outputs.version_code }}-${{ steps.meta.outputs.short_sha }}
+          path: smoke-artifacts/
+          if-no-files-found: ignore
+
+      - name: Smoke run summary
+        if: always()
+        run: |
+          {
+            echo "## Device smoke summary"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Version | ${{ steps.meta.outputs.version_name }} (${{ steps.meta.outputs.version_code }}) |"
+            echo "| Commit | ${{ steps.meta.outputs.short_sha }} |"
+            echo "| Result | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

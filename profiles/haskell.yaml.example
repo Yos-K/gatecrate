@@ -1,0 +1,11 @@
+# profiles/haskell.yaml.example — 汎用コア衛生 + haskell アダプタ
+profile: haskell
+layers:
+  - core
+adapters:
+  - haskell
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-line-limit.sh
+  - run-tests.sh

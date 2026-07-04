@@ -1,0 +1,16 @@
+# profiles/full.yaml.example
+# standard に mutation / Alloy / smoke / medium 層を将来追加する完全プロファイルの器（現状は standard 相当）
+# 用途: 状態複雑性 high × 失敗時被害 high のプロジェクト、または学習目的
+
+profile: full
+layers:
+  - core
+  - adapters/android-jvm
+adapters:
+  - android-jvm
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-sizes.sh
+  - check-test-smells.sh
+  # mutation testing, Alloy, smoke テストは将来追記予定

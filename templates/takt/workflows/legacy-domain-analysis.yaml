@@ -1,0 +1,136 @@
+# TAKT workflow — レガシーのドメイン知識抽出を「どこまで」まで機械制御するパイプライン。
+#
+# WHY（スキルでは制御できない）: ドメイン知識の深掘りはエージェントに任せると「深さ」がぶれる——浅すぎて使えない、
+# または止まらず無限に掘る。スキルの注意書き（判断層）では停止条件を強制できない。本ワークフローは各フェーズに
+# `type: command` の品質ゲートを置き、TAKT が「規定の深さに達したか」を機械判定する。未達ならゲートが落ち、TAKT が
+# 同ステップを再実行して深掘りを強制し、達したら次フェーズへ進む。判断（クラスタ選定・意図vs欠陥・BC境界・命名・優先）は
+# persona=legacy-domain-analyst が供給し、TAKT は深さの強制と遷移のみを担う。＝「TAKT が制御・persona が判断」。
+#
+# スコープ（どこまでやるべきか・各フェーズの合格ゲート）:
+#   A 俯瞰      analysis/survey.md        : モジュール表 + 外部システム(ACL) + 設計世代 + BC候補
+#   B BC地図    analysis/context-map.md   : 全BCに型付き関係(shared-kernel/customer-supplier/ACL/conformist) + 共有カーネル
+#   C 各BC深掘り analysis/bc/<bc>.md       : check-bc-domain（用語>=N・各用語に定義/不変条件/evidence・UC流れ・hotspot）★深さの核
+#   D ハーネス  characterization+mutation : run-mutation exit0（strength=100%/生存0）+ 未承認スナップショット無し
+#   E 道筋      analysis/roadmap.md       : 順序付きStrangler step（各stepにクラスタ+ハーネス前提+対象BC）
+#
+# 前提: 消費側 .takt/config.yaml に workflow_command_gates: { custom_scripts: true }。
+#       scripts/check-bc-domain.sh 採用。ハーネス段を回すなら scripts/run-mutation*.sh と characterization 雛形。
+#       BC_MIN_TERMS は中核BC=15 / 支援BC=8 を目安（下のゲートの値を対象に合わせる）。
+name: legacy-domain-analysis
+description: >
+  Drive legacy domain-knowledge extraction to a defined depth under machine gates: survey →
+  BC map → per-BC deep domain knowledge (gated by check-bc-domain) → harness (gated by mutation
+  convergence) → refactoring roadmap. TAKT enforces "how far" via command gates and re-invokes a
+  phase until its gate passes; the persona supplies judgment. Never advances on a shallow phase.
+max_steps: 30
+initial_step: survey
+
+steps:
+  # ---------- A 俯瞰 ----------
+  - name: survey
+    persona: legacy-domain-analyst
+    edit: true
+    instruction: |
+      目的: 対象レガシーシステムを俯瞰し analysis/survey.md を作る。含めるもの: ①モジュール棚卸し(名前×規模)
+      ②外部連携システム=ACL境界の一覧 ③設計世代の分類(クリーン domain/application 構造 vs レガシー action/manager)
+      ④境界付けられたコンテキスト(BC)候補の列挙(中核/支援/汎用の当たり)。判断(どれが重要か・世代の線引き)はあなたが下す。
+      品質ゲートが survey.md の構造を検査する。落ちたら不足を補って再実行される。
+    quality_gates:
+      - type: command
+        name: survey-gate
+        command: "test -f analysis/survey.md && grep -qiE '外部|external|ACL' analysis/survey.md && grep -qiE 'BC|context|コンテキスト' analysis/survey.md && grep -qiE 'モジュール|module' analysis/survey.md"
+        cwd: "."
+        timeout_ms: 300000
+    rules:
+      - condition: survey.md が俯瞰(モジュール/外部システム/設計世代/BC候補)を満たし、品質ゲートが通った
+        next: map
+
+  # ---------- B BC地図 ----------
+  - name: map
+    persona: legacy-domain-analyst
+    edit: true
+    instruction: |
+      目的: analysis/context-map.md に BC 分割と関係を描く。各 BC を中核/支援/汎用に分類し、BC 間の関係を
+      **型付き**で(shared-kernel / customer-supplier / ACL / conformist)記す。全外部システムをどれかの BC に対応づけ、
+      システム全体の**共有カーネル**(全BCが依存する識別子・概念)を特定する。連結キーを明記。図は ASCII で描かず、
+      関係は表で(from BC | 型 | to BC/外部 | 連結キー)。判断(境界の線引き)はあなた。品質ゲートが関係の存在を検査する。
+    quality_gates:
+      - type: command
+        name: map-gate
+        command: "test -f analysis/context-map.md && grep -qiE 'shared.?kernel|共有カーネル' analysis/context-map.md && grep -qiE 'customer-supplier|conformist|ACL' analysis/context-map.md"
+        cwd: "."
+        timeout_ms: 300000
+    rules:
+      - condition: context-map.md が全BCの型付き関係と共有カーネルを満たし、品質ゲートが通った
+        next: deepen
+
+  # ---------- C 各BC深掘り（深さの核）----------
+  - name: deepen
+    persona: legacy-domain-analyst
+    edit: true
+    instruction: |
+      目的: 各中核BCについて analysis/bc/<bc>.md にドメイン知識を**規定の深さ**で書く。1つの BC につき:
+      ①用語集の表(列: 用語 | 定義 | 不変条件 | evidence)。各用語に**定義・不変条件(定数を実値に解決)・evidence(コード行)**を
+      全て埋める("-"や空は不可)。②ユースケースと流れ(順序つき)。③「## 用語間のルール」節——**型付き(包含/多重度/ペア/整合/
+      コンテキスト間の同一性/依存)＋evidence** のルールを書く(例: 「ペア: ALIAS_AUID は ALIAS_KBN を伴う。Foo.java:905」)。
+      ④hotspot(コードだけでは確定できない=オーナー判断)。可能なら取りうる値(Enum列挙/config駆動/例)・状態遷移も。
+
+      品質ゲートは analysis/bc/ の**全ての** <bc>.md を3つのゲートで検査する: ①check-bc-domain(深さ＝用語数・各セル非空・UC・
+      hotspot) ②check-evidence-resolves(真実性＝各 evidence が実コードに解決するか) ③check-term-relations(**用語間のルール**＝
+      型付き＋evidence のルールが規定数)。**重要**: 深さゲートは「埋まっているか」しか見ないので、ソースを読まず値や file:method を
+      **捏造**すると真実性ゲートが「未解決」で弾く。また用語間ルールを書かないと用語間ゲートが弾く。よって**必ず対象ソースを実際に
+      読み、実値・実行番号・実メソッド名を書き、用語間ルールも型付き＋evidence で書く**こと。1つでも未達なら名指しで返るので、最も
+      浅い/捏造/関係欠落の BC を1つ直して再挑戦(1ターン1BC)。深掘りが本質的に不能なら hotspot 化して述べた上で ABORT。
+    quality_gates:
+      - type: command
+        name: depth-evidence-relations-gate
+        # 全 BC 文書が深さ・真実性・用語間ルールの3ゲートを満たすか。1つでも未達なら非0で再実行。
+        # BC_MIN_TERMS=中核15/支援8 目安。EVIDENCE_CODE_ROOT=対象ソース根。TERM_REL_MIN=用語間ルール数(既定4)。
+        command: "rc=0; for f in analysis/bc/*.md; do [ -e \"$f\" ] || { echo 'no BC docs yet'; exit 1; }; BC_MIN_TERMS=12 sh scripts/check-bc-domain.sh \"$f\" || rc=1; sh scripts/check-evidence-resolves.sh \"$f\" || rc=1; sh scripts/check-term-relations.sh \"$f\" || rc=1; done; exit $rc"
+        cwd: "."
+        timeout_ms: 600000
+    rules:
+      - condition: 全 BC 文書が check-bc-domain の規定の深さを満たし、品質ゲートが通った
+        next: harness
+      - condition: ある BC の深掘りがコード上不能で、その点を hotspot 化した上で深掘り停止を提案している(在庫不能の宣言・在庫不足ではない)
+        next: ABORT
+
+  # ---------- D ハーネス ----------
+  - name: harness
+    persona: legacy-domain-analyst
+    edit: true
+    instruction: |
+      目的: 各中核BCの最もルール密なクラスタに characterization(現挙動 pin)を張り、mutation を収束させる
+      (survivor-strict)。生存ミュータント=未固定ルールを分類(意図 vs 欠陥)し、意図なら殺すテストを足し、欠陥なら
+      hotspot 化。テンプレは templates/characterization/。品質ゲートが mutation の収束(strength=floor以上/生存0)を検査する。
+      ローカルで mutation が不安定なら CI を権威ゲートにする方針(setup skill Phase 7)。判断(クラスタ選定・生存分類)はあなた。
+    quality_gates:
+      - type: command
+        name: mutation-gate
+        command: "sh scripts/run-mutation-tests.sh"
+        cwd: "."
+        timeout_ms: 600000
+    rules:
+      - condition: 対象クラスタの mutation が収束(品質ゲートが通った)
+        next: roadmap
+      - condition: ローカルで mutation 実行が環境的に不安定で、CI を権威ゲートにする方針に切り替える判断をした
+        next: roadmap
+
+  # ---------- E 道筋 ----------
+  - name: roadmap
+    persona: legacy-domain-analyst
+    edit: true
+    instruction: |
+      目的: analysis/roadmap.md に、現状モノリスから提案 BC への**順序つきリファクタリング道筋**を書く。Strangler Fig で、
+      各 step に「対象クラスタ / ハーネス前提(どの characterization+mutation を先に張るか) / 移行先 BC」を明記。目標形が
+      既にシステム内のクリーンなモジュールに在るならそれを参照アーキテクチャに。共有カーネル(顧客識別等)を最優先に。
+      最初の1-2 step は実行可能な粒度で詳細化。判断(優先順位)はあなた。品質ゲートが順序つき step とハーネス前提の記載を検査。
+    quality_gates:
+      - type: command
+        name: roadmap-gate
+        command: "test -f analysis/roadmap.md && grep -qiE 'strangler|段階|step|ステップ' analysis/roadmap.md && grep -qiE 'ハーネス|characterization|mutation|harness' analysis/roadmap.md"
+        cwd: "."
+        timeout_ms: 300000
+    rules:
+      - condition: roadmap.md が順序つき step とハーネス前提を満たし、品質ゲートが通った
+        next: COMPLETE

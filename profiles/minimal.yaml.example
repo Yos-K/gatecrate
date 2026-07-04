@@ -1,0 +1,15 @@
+# profiles/minimal.yaml.example
+# 汎用コア衛生のみ導入するプロファイル
+# 用途: ロジックを持たない小規模・使い捨てプロジェクト向け
+# 根拠: harness-investment「必須コア」— 安価で効果直結
+
+profile: minimal
+layers:
+  - core
+adapters: []
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  # 言語非依存の core 版を使う（check-file-sizes.sh は src/**.java 専用の Android アダプタ版で、
+  # 非Android の minimal 消費者では何も検査しない）。
+  - check-file-line-limit.sh

@@ -1,0 +1,11 @@
+# profiles/typescript.yaml.example — 汎用コア衛生 + typescript アダプタ（test/coverage ゲート）
+profile: typescript
+layers:
+  - core
+adapters:
+  - typescript
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-line-limit.sh
+  - run-tests.sh

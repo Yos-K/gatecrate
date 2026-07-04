@@ -1,0 +1,10 @@
+# サンプル コンテキストマップ（オンライン書店）— BCはアクター＋同一性キー＋語彙で導出
+BC bc_order 注文BC | kind=core | aggregates=注文 | summary=注文の受付・確定・取消を担う中核。 | discuss=導出根拠: 同一性=注文ID、語彙=明細/数量、アクター=購入者。
+BC bc_pay   決済BC | kind=generic | aggregates=決済 | summary=与信→売上確定→返金を行う決済の状態機械。注文以外でも使える汎用の決済能力。 | discuss=導出根拠: 同一性=決済ID、語彙=与信/売上確定/返金、外部=決済ゲートウェイ。
+BC bc_inv   在庫BC | kind=supporting | aggregates=在庫 | summary=書籍の在庫数を管理し引当を行う。 | discuss=導出根拠: 同一性=書籍ID、語彙=在庫数/引当。
+EXT ext_pay 決済ゲートウェイ | summary=与信・売上確定・返金を実行する外部決済サービス。
+EXT ext_wh  倉庫システム | summary=在庫の実数を持つ外部倉庫。
+REL bc_order CS bc_pay | key=注文ID・決済ID | reason=注文確定が決済(与信/売上確定)を起こす。決済は注文の供給先。
+REL bc_order CS bc_inv | key=書籍ID | reason=注文が在庫引当を要求する。
+REL bc_pay   ACL ext_pay | key=決済ID | reason=決済ゲートウェイの応答をドメイン状態へ変換する腐敗防止層(外部の型を自分の型へ翻訳)。
+REL bc_inv   Conformist ext_wh | key=書籍ID | reason=倉庫の在庫モデルに順応して在庫数を取り込む。

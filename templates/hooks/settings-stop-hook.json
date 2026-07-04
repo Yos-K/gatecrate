@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh .claude/hooks/spec-test-mutation-gate.sh",
+            "timeout": 1200
+          }
+        ]
+      }
+    ]
+  }
+}

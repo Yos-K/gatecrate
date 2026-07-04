@@ -1,0 +1,81 @@
+# TAKT workflow — document a RULE and reflect it into a test (+ a model assert when warranted).
+#
+# This is the "specify" + "1 rule = 2 reflections" step of the domain-knowledge-deepening loop
+# (docs/spec-rules.md). Broaden (harness-coverage-expand) proposes WHICH technique a risk-shaped
+# cluster needs; this workflow records the RULE that technique verifies, as the single source that
+# drives BOTH a test and — for an order/state or concurrency rule — a model assert. That is what lets
+# tests and model checks grow together as code is implemented, instead of drifting apart.
+#
+# Shape: a SEQUENCE (specify -> reflect), like harness-coverage-expand — the work is judgment
+# (phrasing the rule, choosing whether a model is warranted), not a converge-to-green gate. It
+# SCAFFOLDS and PROPOSES; it does not canonize. A rule derived from observed behaviour starts as a
+# DRAFT marked "needs human intent/defect classification" — a human promotes it before the
+# reflections are locked into CI (never freeze a bug as spec).
+#
+# Prerequisites: a git repo, and `scripts/check-test-compiles.sh` adopted (install standard / sync
+# ship it; it backs the scaffold-compiles gate — auto-detects the stack or honours TEST_COMPILE_CMD).
+# DOC-less consumers OK — the mini-language and the 1-rule-2-reflections procedure are carried by the
+# spec-author persona. Input: a risk/invariant (e.g. a Broaden proposal) given via the run task.
+name: harness-rule-reflect
+description: >
+  Document a rule (mini-language, stable ID) for a risk-shaped cluster and reflect it into an
+  implementation test plus — for an order/state or concurrency rule — an Alloy model assert, with a
+  traceability chain rule-id -> test -> assert. Scaffolds and proposes; behaviour-derived rules start
+  as drafts needing a human intent/defect classification. Never canonizes a bug as spec.
+max_steps: 5
+initial_step: specify
+
+steps:
+  - name: specify
+    persona: spec-author
+    edit: true
+    instruction: |
+      Read the risk/invariant you were given (a Broaden proposal, or a described behaviour) and the
+      actual code it concerns. Write the rule in the mini-language to docs/spec/<area>.md with a
+      stable ID (R-<n>): `R-1 invariant "<domain words>"` / `policy "..." when <Event>` / `error ...`.
+      Keep it in domain words, not code. If the rule is derived from how the code CURRENTLY behaves,
+      mark it a DRAFT: `R-? (draft — needs human intent/defect classification)` and state the open
+      question (is this behaviour the intended spec, or a defect to fix?). Do not canonize observed
+      behaviour on your own.
+    rules:
+      - condition: the rule is written with an ID, in domain words, and behaviour-derived rules are marked draft with the intent/defect question stated
+        next: reflect
+
+  - name: reflect
+    persona: spec-author
+    edit: true
+    instruction: |
+      Reflect the rule into BOTH layers it warrants (1 rule = 2 reflections):
+        - ALWAYS an implementation test: scaffold the test that checks the rule on the real code —
+          a stateful PBT for an order/state rule, a PBT for an input-space invariant, an example test
+          for a tiny space. Name it after the rule. **It MUST be SKIPPED/IGNORED so normal test
+          discovery does not run it before the human classifies it** — the adapters run broad commands
+          (`cargo test`, `pytest`, `go test ./...`, `vitest`) that auto-discover any file under the
+          test paths, so a `todo!()`/failing stub (or even a green stub that locks current behaviour)
+          would turn PRs red / canonize behaviour prematurely. Use the language's skip: Rust
+          `#[ignore = "R-n pending classification"]`, pytest `@pytest.mark.skip(reason=...)`, Go
+          `t.Skip(...)`, vitest `it.skip(...)`. The human removes the skip when they approve the rule.
+          The scaffold MUST also COMPILE — an ignored test is still BUILT, so a non-compiling stub
+          breaks the build red just like a failing one. Keep the body minimal and compiling (a
+          `todo!()` body, or assertions you confirmed build); never a half-written macro.
+        - A model assert ONLY when the rule is about ORDER/STATE or CONCURRENCY (where exhaustive
+          ordering pays): scaffold an Alloy assert skeleton (a `.als` with the predicate + `assert`
+          + a small `check`). For a pure input-space rule, do NOT add a model — say why (it would add
+          the model-code gap for no gain).
+      Record the traceability next to the rule: `R-n -> test:<name> / assert:<name|n/a>`. Leave the
+      reflections clearly as scaffolds pending the human's classification/approval; do not wire them
+      into CI as required gates yet.
+    quality_gates:
+      # ENFORCE the compile requirement (not just prompt it): build the tests WITHOUT running them,
+      # so a non-compiling scaffold fails the gate and TAKT re-invokes the step to fix it. The
+      # core script auto-detects the stack (cargo test --no-run / go test / tsc --noEmit / compileall)
+      # or honours harness.config.sh TEST_COMPILE_CMD. Adopt core/scripts/check-test-compiles.sh
+      # into the consumer's scripts/ (install standard / sync ship it).
+      - type: command
+        name: scaffold-compiles
+        command: "sh scripts/check-test-compiles.sh"
+        cwd: "."
+        timeout_ms: 600000
+    rules:
+      - condition: every rule has a test reflection that COMPILES (the scaffold-compiles gate passed), a model assert where order/concurrency warrants it (and a stated reason where not), and the traceability chain recorded
+        next: COMPLETE

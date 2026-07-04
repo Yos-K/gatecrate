@@ -1,0 +1,61 @@
+name: es-converge
+description: >
+  ESモデル(.es)を「情報完全(es-lint-info ERROR=0・WARN→0)かつ evidence ドリフトなし」へ収束させる育成ループ。
+  ゲートの exit code が権威（lint→fill を繰り返す機械判定の終了条件）、何を書くか（payload/fields/behaviors/role を
+  実コード evidence から補う・捏造しない）の judgment は es-analyst persona が供給する。TAKT はループ統率のみ。
+max_steps: 20
+initial_step: lint
+
+# 同じ lint→fill を繰り返しても減らない＝停滞を検出して打ち切る（無限ループ防止）
+loop_monitors:
+  - cycle:
+      - lint
+      - fill
+    threshold: 4
+    judge:
+      persona: es-analyst
+      instruction: es-loop-monitor
+      rules:
+        - condition: 健全（ERROR/WARN が前回より減っている＝進捗あり）
+          next: lint
+        - condition: 停滞（同じ指摘が繰り返され埋められない・evidence が見つからない）
+          next: ABORT
+          appendix: |
+            人間/オーナーの確認が要る残課題:
+            - {埋められなかった項目と理由}
+
+steps:
+  # 1) 全ゲートを回し、残る ERROR/WARN（不足項目）を読む。クリーンなら完了。
+  - name: lint
+    edit: false
+    persona: es-analyst
+    instruction: es-lint-check
+    provider_options:
+      claude:
+        allowed_tools:
+          - Read
+          - Bash
+    rules:
+      - condition: es-lint・es-lint-info・check-es-evidence・check-jargon が全て ERROR=0 かつ 情報完全性の WARN=0
+        next: COMPLETE
+      - condition: ERROR か WARN（payload/fields/states/behaviors/role 未記述、reads 出所未定義、フラグ/コード臭い、evidence ドリフト、説明なしの裸ジャーゴン等）が残る
+        next: fill
+
+  # 2) 指摘された不足を、実コードの evidence を読んで .es に補う（捏造しない）。終わったら lint へ戻る。
+  - name: fill
+    edit: true
+    persona: es-analyst
+    instruction: es-fill-gaps
+    provider_options:
+      claude:
+        allowed_tools:
+          - Read
+          - Edit
+          - Bash
+          - Grep
+          - Glob
+    rules:
+      - condition: 指摘された不足を .es に追記/修正した（次の lint で再判定する）
+        next: lint
+      - condition: 不足が実コードからは確定できない（業務判断が要る）→ discuss=/hotspot 化した
+        next: lint

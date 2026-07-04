@@ -1,0 +1,91 @@
+# TAKT workflow — converge a consumer's prevention gates to all-ALIVE (survival proof).
+#
+# Shape (same family as harness-config-derive.yaml, validated against TAKT's yaml-schema): the
+# ROADMAP P4 second-order loop does NOT branch on a shell exit code in `rules` — TAKT step
+# transitions cannot. It IS a single agent step guarded by a `type: command` quality gate: TAKT
+# runs probe-gate-liveness.sh after the step, passes only on exit 0 (every prevention gate
+# rejected its injected synthetic violation = ALIVE), and on failure re-invokes the SAME step
+# with the exit code + the probe's stdout naming which gate is DEAD. The agent reads that
+# deterministic signal and REPAIRS the dead gate's rejection path, and the probe re-runs until
+# all gates are ALIVE. The judgment (repair the gate vs the guarded risk is genuinely gone ->
+# propose removal) is the persona's; TAKT only enforces the gate and loops.
+#
+# Why only this part is a TAKT loop: of the two-axis ROI evaluation, only the survival probe is
+# machine-judgeable (ALIVE/DEAD via exit code) — the same shape as mutation testing. The pruning
+# verdict ("remove this layer") is NOT machine-judgeable (3-condition AND, the counterfactual
+# trap) and stays a human-approved proposal. So this workflow converges liveness; it never
+# auto-removes a gate. See docs/harness-roi-evaluation.md and ../SKILL.md.
+#
+# SCOPE — only honestly-repairable gates belong in this loop. A converge-to-green command gate
+# CANNOT honor a mid-loop ABORT: the probe stays non-zero until the gate is edited, so re-invocation
+# keeps pressuring the agent to edit it. A gate that should be ESCALATED, not auto-repaired
+# (governance/owned, or premise-vanished -> removal proposal), must therefore be triaged OUT of
+# PROBE_GATES before this run and handled by the human-judgment path (gatecrate-evaluate skill /
+# docs/harness-roi-evaluation.md). Feeding an escalation-only gate to this loop is a category error
+# — observed in exp3 (see README): the persona ABORTed on turn 1, then rationalized past the
+# governance banner under loop pressure on turn 2. Adding a persona rule to "hold the ABORT" only
+# bought one more turn (it caved on turn 3, reasoning the loop's persistence meant ABORT was not
+# terminal). A prompt guard cannot beat the structural pressure, so the fix is DETERMINISTIC: this
+# gate runs `probe-gate-liveness.sh --repairable-only`, which excludes gates marked
+# `# gatecrate-scope: escalation-only` from the converge set — the loop never sees them, so it cannot
+# pressure the agent to edit one. Verified in exp3b: with the marker present the loop completed in 1
+# turn and the governed gate was never touched. Mark such gates; the default-mode probe (run
+# separately, for a human) still surfaces a broken one.
+#
+# Requires in the consumer's .takt/config.yaml:  workflow_command_gates: { custom_scripts: true }
+# Prerequisites: scripts/probe-gate-liveness.sh adopted; harness.config.sh sets PROBE_GATES
+# (the consumer's "<path>:<kind>" prevention gates, repairable ones only); the gate scripts present.
+name: harness-liveness-converge
+description: >
+  Converge a consumer's prevention gates so every one rejects an injected synthetic violation
+  (survival proof, ROADMAP P4). One agent step repairs whichever gate the probe reports DEAD,
+  guarded by a command gate running probe-gate-liveness.sh; its exit code and the DEAD-gate name
+  drive each repair until all gates are ALIVE. Never weakens or removes a gate to pass.
+max_steps: 8
+initial_step: repair
+
+steps:
+  - name: repair
+    persona: gatecrate-evaluate
+    edit: true
+    instruction: |
+      Goal: make `sh scripts/probe-gate-liveness.sh` exit 0 — every prevention gate listed in
+      harness.config.sh PROBE_GATES must REJECT its injected synthetic violation (ALIVE) — by
+      repairing the rejection path of any DEAD gate, WITHOUT weakening or removing the gate. The
+      liveness quality gate runs the probe for you after each turn; you do not run it yourself.
+      When it fails you receive its exit code and stdout — read the line(s) of the form
+      "DEAD  <gate> (<kind>) — accepted a synthetic violation" and act:
+
+      - A DEAD gate means its rejection path no longer fires: a recent change made it ACCEPT the
+        violation it is supposed to block. Open the gate script (scripts/<gate>), find why it
+        stopped rejecting — a guard deleted, a condition inverted, a glob/grep narrowed so it no
+        longer matches, an early `exit 0`, a status variable never set to 1 — and RESTORE the
+        rejection so the gate exits non-zero on the violation.
+      - NEVER make the probe pass by stubbing the gate, deleting the check, or narrowing PROBE_GATES
+        to drop the failing gate. That is defeating the survival proof, not repairing it.
+      - If — and only if — the risk the gate guards can genuinely no longer occur (the premise
+        vanished, not "it never fired"), do NOT silently remove it: ABORT and state the removal
+        proposal with evidence. A human approves removals per docs/harness-roi-evaluation.md;
+        "never fired" alone is the counterfactual trap and is NOT grounds to remove.
+
+      One change per turn, so each probe result maps to one cause. Read the fed-back output
+      literally — it names the exact DEAD gate and kind; do not guess. When the probe exits 0
+      (all ALIVE), finalize — you are done.
+    quality_gates:
+      - type: command
+        name: liveness-gate
+        # --repairable-only EXCLUDES gates marked `# gatecrate-scope: escalation-only` from the
+        # converge set (deterministic pre-loop triage). This is the structural fix for exp3: the
+        # loop never sees a human-owned gate, so it cannot pressure the agent to edit one. A broken
+        # escalation-only gate is surfaced by the default-mode probe (run separately, for a human).
+        command: "sh scripts/probe-gate-liveness.sh --repairable-only"
+        cwd: "."
+        timeout_ms: 600000
+    rules:
+      # COMPLETE / ABORT are TERMINAL verdicts. While gates remain DEAD but honest repair is
+      # still in progress, choose NEITHER — the command gate re-invokes this step on non-zero
+      # exit and drives the loop. Do NOT abort merely because some gate is still DEAD.
+      - condition: the liveness probe passed (all prevention gates ALIVE) and the repair is finalized
+        next: COMPLETE
+      - condition: the agent is trying to pass by weakening/stubbing/dropping a gate, OR has judged a gate's guarded risk genuinely gone and is proposing removal instead of repairing (a human-approved proposal, not in-progress repair)
+        next: ABORT

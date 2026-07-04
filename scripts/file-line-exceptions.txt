@@ -1,0 +1,18 @@
+# file-line 制限（300行）の例外リスト（check-file-line-limit.sh が参照）。
+# 1行1パス（ROOT 相対）。# 始まりはコメント、空行は無視。
+# 例外は「責務分割で減らせない、本質的に増え続ける/分割不能な成果物」に限る。
+#
+# CHANGELOG.md: Keep a Changelog 形式の append-only な変更履歴。リリースごとに必ず増えるため
+#   300行ルールの責務分割（カテゴリ分割）になじまない。履歴の一覧性を保つため単一ファイルを維持する。
+CHANGELOG.md
+# install.sh: 単一エントリのインストーラ。引数解析→プロファイル判定→層別配置→設定生成→
+#   cc-sdd scaffold→次のステップ、という線形手順で、分割すると配布物が増え自己完結性が崩れる。
+#   オーナー判断で 300 行超過を許容（cc-sdd の npx 導入を取り込んだため）。
+install.sh
+# .claude/skills/gatecrate-setup/SKILL.md: 単一エージェントの構築 runbook（Phase 0〜8 の手順書）。
+#   フェーズ分割で別ファイル化すると手順の一覧性が失われるため、単一ファイルで維持する。
+.claude/skills/gatecrate-setup/SKILL.md
+# probe-gate-liveness.sh: 予防ゲートの生存証明プローブ。各ゲートの reject 経路に合成違反を注入する
+#   inject_* が種別ごとに増える（title/secrets/filesize/posix/escalation/doc-currency/rule-doc/
+#   merge-integrity/release-version/third-party…）。分割すると注入器とディスパッチが分断され危険。
+core/scripts/probe-gate-liveness.sh

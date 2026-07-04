@@ -1,0 +1,11 @@
+# profiles/rust.yaml.example — 汎用コア衛生 + rust アダプタ（test/coverage ゲート）
+profile: rust
+layers:
+  - core
+adapters:
+  - rust
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-line-limit.sh
+  - run-tests.sh

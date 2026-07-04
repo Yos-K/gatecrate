@@ -1,0 +1,72 @@
+// templates/characterization/Approvals.kt.example
+//
+// Copy into your test sources as `src/test/kotlin/characterization/Approvals.kt` (drop the
+// `.example`). A dependency-free golden-master (approval) helper: it pins the CURRENT behavior of
+// a legacy cluster so you can refactor under a safety net. No external library — uses java.nio only,
+// so the gatecrate android-jvm runner (direct javac/kotlinc + JUnit5) runs it with no extra jars.
+//
+// How it works (the golden-master loop):
+//   1. Your test computes some output string and calls Approvals.verify(output, "SomeName").
+//   2. First run: no <SomeName>.approved.txt exists -> it writes <SomeName>.received.txt and FAILS.
+//   3. You REVIEW the received file. Is this the behavior you want to lock in? (Beware the
+//      characterization trap: do not approve a bug as the spec — see README.md.)
+//   4. If correct, approve it: `mv ...received.txt ...approved.txt` (or approve-characterization.sh).
+//      Commit ONLY the .approved.txt. The check-no-received-approvals gate rejects committed
+//      .received.* so an un-reviewed snapshot can never sneak in as the spec.
+//   5. Later runs: actual is compared to approved; any difference FAILS -> you changed behavior.
+//      During refactoring that failure is your safety net: it means you broke something.
+
+package characterization
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+
+object Approvals {
+    // Approved/received files live here (repo-root relative; the runner cds to the repo root).
+    // Override with -Dapprovals.dir=... if your layout differs.
+    private val dir: Path =
+        Paths.get(System.getProperty("approvals.dir", "src/test/resources/approved"))
+
+    /**
+     * Pin [actual] against the approved snapshot named [name].
+     * Throws AssertionError (fails the test) when no approved file exists yet, or when behavior
+     * drifted from the approved snapshot. On any mismatch it writes <name>.received.txt for review.
+     */
+    fun verify(actual: String, name: String) {
+        Files.createDirectories(dir)
+        val approved = dir.resolve("$name.approved.txt")
+        val received = dir.resolve("$name.received.txt")
+        val normalized = normalize(actual)
+
+        if (!Files.exists(approved)) {
+            write(received, normalized)
+            throw AssertionError(
+                "No approved snapshot for '$name'. Wrote $received.\n" +
+                    "  Review it; if it is the behavior to lock in, approve:\n" +
+                    "    mv '$received' '$approved'   (or: sh scripts/approve-characterization.sh $name)\n" +
+                    "  Commit only the .approved.txt. (Do not approve a bug — see characterization README.)"
+            )
+        }
+
+        val expected = normalize(Files.readString(approved))
+        if (expected != normalized) {
+            write(received, normalized)
+            throw AssertionError(
+                "Characterization mismatch for '$name': behavior changed vs the approved snapshot.\n" +
+                    "  Inspect:  diff '$approved' '$received'\n" +
+                    "  If this change was INTENDED, re-approve. If not, your edit broke behavior — revert it."
+            )
+        }
+        // Matched: drop any stale received so it never lingers (and never gets committed).
+        Files.deleteIfExists(received)
+    }
+
+    private fun normalize(s: String): String =
+        s.replace("\r\n", "\n").trimEnd('\n') + "\n"
+
+    private fun write(path: Path, content: String) {
+        Files.createDirectories(path.parent)
+        Files.writeString(path, content)
+    }
+}

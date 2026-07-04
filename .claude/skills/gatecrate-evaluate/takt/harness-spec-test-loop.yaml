@@ -1,0 +1,175 @@
+# TAKT workflow — the AGENT's spec-driven learning loop, end to end, for ONE code cluster:
+#   explore -> propose-model -> specify -> select+reflect (ROI) -> measure (mutation) -> iterate.
+#
+# This COMPOSES the three previously-separate additive workflows into one autonomous loop so the
+# agent can, on its own, "explore the domain, find the spec, document it, and test it" — with the
+# test TECHNIQUE chosen by ROI per rule and the EFFECTIVENESS judged by mutation/ROI:
+#   - explore        = harness-coverage-expand's scan/assess (coverage-scout): risk shapes + facts.
+#   - propose-model  = NEW (domain-modeler): code structures/constraints -> domain-concept HYPOTHESES
+#                      for the expert. The "code suggests a model the expert can learn from" step.
+#   - specify        = harness-rule-reflect's specify (spec-author): confirmed/draft rules, IDs.
+#   - select+reflect = harness-rule-reflect's reflect (spec-author): the ROI-selected technique per
+#                      rule (example / PBT / stateful-PBT+model / exploratory) -> a scaffolded test.
+#   - measure        = harness-coverage-deepen (coverage-deepener): mutation as the EMPIRICAL ROI
+#                      signal — a survivor means "this rule is not adequately tested"; loop until clean.
+#
+# Why one loop and not three invocations: the steps feed each other — a survivor at `measure` sends
+# you back to `select` (wrong/too-weak technique) or `specify` (a rule you missed). Composing them is
+# what makes it the agent's *learning loop* rather than three disconnected chores. The judgment stays
+# the personas'; TAKT only sequences and runs the gates.
+#
+# RUNS ALONGSIDE CODING (inner-loop, not a separate phase): the natural input is THE CLUSTER YOU JUST
+# CHANGED in a feature or refactor — run this loop on it within the same PR so the spec doc and its
+# tests grow WITH the code instead of in a later batch. Scope `measure` to the changed cluster
+# (a single mutation target) so it stays cheap enough to run per-change.
+#
+# MODE — who decides whether a model hypothesis becomes a rule (harness.config.sh SPEC_LOOP_MODE):
+#   - `expert-gated` (DEFAULT; business-requirement domains): propose-model STOPS at hypotheses;
+#     specify marks rules DRAFT; reflect SKIPS the tests — a human/owner classifies before anything is
+#     canonized. Use when a separate authority owns the intent.
+#   - `autonomous` (vibe-coded projects with no separate human intent): the agent DECIDES each model
+#     question from functional correctness / good design and PROCEEDS — specify canonizes the rule,
+#     reflect writes an ACTIVE (non-skipped) test. BUT business-POLICY-shaped calls are recorded as
+#     `DECIDED AUTONOMOUSLY (policy) — chose X because Y; an owner may prefer Z` (never hidden), and a
+#     decision that could move money / change a contract / surprise a user is escalated to expert-gated
+#     for THAT item even on an autonomous project. domain-modeler carries the full mode rules.
+#
+# Honest bound: the agent discovers only the spec IMPLIED by the code/tests; rules that *should* exist
+# but are nowhere in the code are invisible (mutation cannot see them either). The loop converges on
+# "the spec the current code embodies is documented and adequately tested" + the model items it
+# surfaced — it seeds, it does not replace, the owner.
+#
+# Prerequisites (in the consumer):
+#   - git repo; `scripts/check-test-compiles.sh` adopted (backs the scaffold-compiles gate).
+#   - a SURVIVOR-STRICT mutation gate for `measure` (see harness-coverage-deepen.yaml's note: rust is
+#     strict natively; floor-based adapters need MUTATION_THRESHOLD=100 for the deepen pass).
+#   - .takt/config.yaml: workflow_command_gates: { custom_scripts: true }.
+#   - harness.config.sh SPEC_LOOP_MODE = expert-gated (default) | autonomous.
+# Input via the run task: the changed cluster/path (and optionally a mode override for this run).
+name: harness-spec-test-loop
+description: >
+  Run the agent's spec-driven learning loop on a (changed) cluster, alongside the coding: explore the
+  domain, propose the domain model the code suggests, document the rules, reflect each into the
+  ROI-selected test technique (example / PBT / stateful-PBT + model), and measure adequacy with
+  mutation — looping until the spec-bearing code has no surviving mutant. SPEC_LOOP_MODE picks the
+  disposition: expert-gated proposes hypotheses + drafts (a human canonizes); autonomous lets the
+  agent decide from functional design and canonize, flagging business-policy calls for later review.
+max_steps: 12
+initial_step: explore
+
+steps:
+  - name: explore
+    persona: coverage-scout
+    edit: false
+    instruction: |
+      Read the target cluster (given in the run task). Extract its RISK SHAPE and the structural
+      facts: data shapes (types/fields, value vs entity), constraints enforced (validation, allowed
+      sets, ranges, non-null), relationships/multiplicity, operation pre/post-conditions, state/order,
+      and time (validity periods). Cite file:line. Classify the risk shape (order/state vs input-space
+      vs branch/calculation) per the test-selection procedure your persona carries. Do not write
+      files; summarise facts + risk shape for the next steps.
+    rules:
+      - condition: the cluster's structural facts and risk shape are summarised with file:line citations
+        next: propose-model
+      - condition: the cluster carries no real risk shape and no non-trivial constraint — nothing to learn
+        next: COMPLETE
+
+  - name: propose-model
+    persona: domain-modeler
+    edit: true
+    instruction: |
+      From the structural facts, propose the DOMAIN MODEL the code suggests. Write
+      `docs/spec/<area>-model-proposals.md` with (1) FACTS the code embodies (file:line) separated from
+      (2) the domain concept each implies, in domain words. Surface scattered-constraint (missing-
+      concept) hints FIRST — they are the highest-value items. Then act per harness.config.sh
+      SPEC_LOOP_MODE (domain-modeler carries the full rules):
+        - expert-gated (default): write each as `HYPOTHESIS — needs domain-expert confirmation` ending
+          in the owner's open question; canonize nothing.
+        - autonomous: DECIDE each from functional correctness / good design and record it as a
+          `DECISION` with a one-line rationale; flag business-POLICY-shaped calls as
+          `DECIDED AUTONOMOUSLY (policy) — chose X because Y; an owner may prefer Z`, and leave a
+          money/contract/UX-surprising call as a HYPOTHESIS (escalate that item to expert-gated).
+    rules:
+      - condition: facts vs model items are separated with domain words and citations; per the mode, items are hypotheses (expert-gated) or recorded decisions with policy flags (autonomous); missing-concept items surfaced
+        next: specify
+
+  - name: specify
+    persona: spec-author
+    edit: true
+    instruction: |
+      Turn the cluster's verifiable constraints into RULES in the mini-language in
+      `docs/spec/<area>.md`, each with a stable ID (`R-<n> invariant/policy/error "<domain words>"`),
+      in domain words, with a traceability stub `R-n -> test:? / assert:?`. Canon vs draft per
+      SPEC_LOOP_MODE:
+        - expert-gated: a rule from a confirmed/obvious constraint can be canon; a rule from how the
+          code CURRENTLY behaves (or an unconfirmed hypothesis) is a DRAFT
+          `R-? (draft — needs human intent/defect classification)` with its open question.
+        - autonomous: a rule backed by a propose-model DECISION is CANON; carry over any
+          `DECIDED AUTONOMOUSLY (policy)` note onto the rule; only an item left as a HYPOTHESIS
+          (escalated) stays a DRAFT.
+    rules:
+      - condition: every verifiable constraint has a rule with an ID in domain words; canon vs draft set per the mode (drafts carry their open question; autonomous policy decisions are noted)
+        next: reflect
+
+  - name: reflect
+    persona: spec-author
+    edit: true
+    instruction: |
+      For EACH rule, choose the test technique by ROI (detection power for this rule's risk shape ÷
+      author+CI+maintenance cost), and scaffold it — the per-rule decision is the loop's first ROI
+      judgment, so RECORD it next to the rule (`technique: <X> because <ROI reason>`):
+        - order/state/concurrency rule -> stateful / model-based PBT + an Alloy assert (.als).
+        - input-space invariant -> a property-based test (the property, not just examples).
+        - tiny/finite space, or a branch/calculation rule -> example tests covering each branch/value
+          (mutation at `measure` will then tell you if the assertions are strong enough).
+        - boundary / unknown-unknown -> mark an exploratory-testing note (a human runs it); do not
+          fake it as an automated test.
+      Every scaffold MUST COMPILE (an ignored test is still built). Skip vs active per SPEC_LOOP_MODE:
+        - expert-gated: SKIP/IGNORE the test until a human classifies the (draft) rule — broad test
+          discovery (`cargo test`/`pytest`/`go test ./...`/`vitest`) would otherwise run a stub red or
+          canonize current behaviour prematurely. Use the language's skip.
+        - autonomous: for a CANON rule, write an ACTIVE test (the agent already decided) so `measure`
+          can run mutation against it now. A rule still DRAFT (an escalated policy item) stays SKIPPED.
+      Name it after the rule and record `R-n -> test:<name> / assert:<name|n/a>`. Model assert ONLY for
+      order/state.
+    quality_gates:
+      # An ignored test is still BUILT — enforce that the scaffold compiles (not just prompt it), so a
+      # non-compiling stub fails the gate and TAKT re-invokes this step to fix it.
+      - type: command
+        name: scaffold-compiles
+        command: "sh scripts/check-test-compiles.sh"
+        cwd: "."
+        timeout_ms: 600000
+    rules:
+      - condition: every rule has a technique chosen with a recorded ROI reason and a compiling scaffold (active in autonomous for canon rules, skipped otherwise); traceability recorded
+        next: measure
+
+  - name: measure
+    persona: coverage-deepener
+    edit: true
+    instruction: |
+      Measure whether the rules are ADEQUATELY tested — empirically, by mutation. In autonomous mode the
+      canon rules' tests are already ACTIVE; in expert-gated, un-skip only the tests a human would
+      clearly approve (or write the minimal real assertions) so mutation can run them. Then run the
+      survivor-strict mutation gate, scoped to the changed cluster (one mutation target) so it stays
+      cheap enough to run alongside the coding.
+      A SURVIVING mutant on spec-bearing code is the precise signal that a fault there is NOT caught =
+      a rule is under-tested: add the focused test that KILLS it (do NOT lower the floor or exclude a
+      killable mutant). This is the loop's effectiveness ROI: keep going until no survivor remains.
+      If a technique keeps finding nothing after real effort, record that as an ROI finding (the rule
+      is simple enough that the lighter technique suffices — note it; don't over-invest).
+    quality_gates:
+      # Mutation is the empirical adequacy signal. The gate MUST be survivor-strict (rust/cargo-mutants
+      # natively; floor adapters need MUTATION_THRESHOLD=100 for the deepen pass) or the loop is
+      # meaningless — it would COMPLETE on the first exit 0 while survivors remain. TAKT re-invokes this
+      # step with the surviving-mutant list until the gate exits 0.
+      - type: command
+        name: mutation-gate
+        command: "sh scripts/run-mutation.sh"
+        cwd: "."
+        timeout_ms: 1200000
+    rules:
+      - condition: the mutation gate is clean (no survivor on the spec-bearing code) and each rule's adequacy/ROI is recorded
+        next: COMPLETE
+      - condition: the gate can only pass by excluding a killable mutant or lowering the floor (not an honest adequacy gain)
+        next: ABORT

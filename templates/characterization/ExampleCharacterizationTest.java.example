@@ -1,0 +1,35 @@
+// templates/characterization/ExampleCharacterizationTest.java.example
+//
+// Copy as `src/test/java/characterization/<Cluster>CharacterizationTest.java` (drop `.example`,
+// rename the class). The class name must end in Test/Tests so the runner picks it up.
+//
+// PURPOSE: pin the CURRENT behavior of a legacy cluster you are about to refactor — BEFORE you
+// touch it. This is the safety net. Flow: characterize (this file) -> approve -> refactor under
+// green -> let diff-coverage ratchet the new structure. See README.md for the full loop.
+
+package characterization;
+
+import org.junit.jupiter.api.Test;
+// import your legacy cluster, e.g.:
+// import com.example.app.legacy.InvoiceCalculator;
+
+public class ExampleCharacterizationTest {
+
+    // Pin a WIDE spread of real inputs through the legacy code and snapshot the output. Value comes
+    // from covering the behavior you don't yet understand (boundaries, empties, the weird ones).
+    @Test
+    void legacyInvoiceCalculation_currentBehavior() {
+        int[] inputs = {0, 1, 99, 100, 100_000};
+
+        StringBuilder report = new StringBuilder();
+        for (int input : inputs) {
+            // String output = InvoiceCalculator.totalFor(input);   // <- call the legacy code
+            String output = "REPLACE_ME(" + input + ")";            // <- placeholder; wire real call
+            report.append("in=").append(input).append(" | out=").append(output).append('\n');
+        }
+
+        // One snapshot captures the whole table. First run FAILS and writes ExampleInvoice.received.txt
+        // — review it, then approve to lock the behavior in.
+        Approvals.verify(report.toString(), "ExampleInvoice");
+    }
+}

@@ -1,0 +1,14 @@
+# sync-manifests/android-jvm.yaml.example
+# sync-manifest 方式の同期対象ホワイトリスト（Android-JVM スタック向け）
+# 各導入先プロジェクトに配置し、harness-sync.yml がこれを読んで PR を起票する。
+
+harness_kit_version: "0.1.0"    # pin（同期検知の基準）
+profile: standard
+managed_files:
+  # 汎用コア（core/scripts/）
+  - scripts/check-conventional-title.sh
+  - scripts/check-no-committed-secrets.sh
+  - scripts/check-file-sizes.sh
+  # Android-JVM アダプタ（adapters/android-jvm/scripts/）
+  - scripts/check-test-smells.sh
+  # NOTE: harness.config.sh / profile.yaml は絶対に含めない（固有設定の構造的保護）

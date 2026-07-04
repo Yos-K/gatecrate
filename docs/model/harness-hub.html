@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gatecrate 全体コンテキストマップ</title>
+<style>
+  :root{--bg:#0d1117;--ink:#e6edf3;--muted:#8b97a3;--line:#243040;--core:#4ea1ff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.6}
+  header{padding:22px 24px 14px;border-bottom:1px solid var(--line)}
+  h1{margin:0 0 6px;font-size:21px}
+  .sub{color:var(--muted);font-size:13px;max-width:1000px}
+  .legend{margin-top:8px;font-size:12px;color:var(--muted)}
+  .legend b{color:var(--ink)}
+  .wrap{max-width:1280px;margin:0 auto;padding:14px 18px 40px}
+  .mapbox{background:#0f1620;border:1px solid var(--line);border-radius:12px;padding:10px;overflow:auto}
+  .mermaid{min-width:1100px}
+  .hint{color:var(--muted);font-size:12px;margin:10px 2px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>gatecrate 全体コンテキストマップ</h1>
+  <div class="sub">境界づけられたコンテキスト（BC）と関係の全体像。<b>BC（箱）をクリックすると、
+  そのコンテキストのイベントストーミング図が開きます</b>（クリック可否は es= 属性の有無）。
+  矢印のラベルは「関係種別と連結キー」。
+  <div class="legend"><b style="color:#3fb950">緑</b>=core（注力）／<b style="color:#4ea1ff">青</b>=supporting／
+  <b style="color:#b083f0">紫</b>=generic／<b style="color:#9aa4b0">灰</b>=外部システム</div></div>
+</header>
+<div class="wrap">
+  <div class="mapbox">
+    <pre class="mermaid">
+flowchart LR
+  classDef core fill:#13241b,stroke:#3fb950,color:#bfe9cb;
+  classDef supporting fill:#13233a,stroke:#2d4f73,color:#cfe3ff;
+  classDef generic fill:#1b1726,stroke:#8a63d2,color:#cbbce9;
+  classDef ext fill:#1a1f26,stroke:#39424d,color:#9aa4b0;
+
+  subgraph SG1["一階ループ（コードを検査する）"]
+    bc_hygiene["衛生・文法ゲート群"]:::supporting
+    bc_quality["コード品質計測"]:::supporting
+    bc_meta["二階ループ（ハーネス自己評価）"]:::core
+    bc_es["ドメイン知識ツールキット"]:::core
+    bc_dist["配布・同期"]:::supporting
+  end
+  subgraph SG2["二階ループ（ハーネスを検査する）"]
+    bc_hygiene["衛生・文法ゲート群"]:::supporting
+    bc_quality["コード品質計測"]:::supporting
+    bc_meta["二階ループ（ハーネス自己評価）"]:::core
+    bc_es["ドメイン知識ツールキット"]:::core
+    bc_dist["配布・同期"]:::supporting
+  end
+  subgraph SG3["ドメイン知識（モデルを育てる）"]
+    bc_hygiene["衛生・文法ゲート群"]:::supporting
+    bc_quality["コード品質計測"]:::supporting
+    bc_meta["二階ループ（ハーネス自己評価）"]:::core
+    bc_es["ドメイン知識ツールキット"]:::core
+    bc_dist["配布・同期"]:::supporting
+  end
+  subgraph SG4["配布（消費者へ届ける）"]
+    bc_hygiene["衛生・文法ゲート群"]:::supporting
+    bc_quality["コード品質計測"]:::supporting
+    bc_meta["二階ループ（ハーネス自己評価）"]:::core
+    bc_es["ドメイン知識ツールキット"]:::core
+    bc_dist["配布・同期"]:::supporting
+  end
+  ext_gha(["GitHub Actions"]):::ext
+  ext_consumer(["消費者リポジトリ"]):::ext
+
+  bc_meta -->|"CS: ゲート名（スクリプトbasename）"| bc_hygiene
+  bc_meta -->|"CS: ゲート名"| bc_quality
+  bc_meta -->|"CS: ゲート名"| bc_es
+  bc_meta -->|"Conformist: workflow実行ID"| ext_gha
+  bc_dist -->|"CS: スクリプトパス"| bc_hygiene
+  ext_consumer -->|"CS: kit版タグ+consumed_scripts"| bc_dist
+
+  click bc_meta "harness-meta-es.html" "二階ループ（ハーネス自己評価） ES"
+    </pre>
+  </div>
+  <div class="hint">ESモデル未作成（クリック不可・次に作る対象）: bc_hygiene（衛生・文法ゲート群）、bc_quality（コード品質計測）、bc_es（ドメイン知識ツールキット）、bc_dist（配布・同期）</div>
+</div>
+<script>
+  mermaid.initialize({startOnLoad:true, securityLevel:'loose', theme:'dark',
+    flowchart:{curve:'basis', nodeSpacing:45, rankSpacing:70}});
+</script>
+</body>
+</html>

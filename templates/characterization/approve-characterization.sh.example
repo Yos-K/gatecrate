@@ -1,0 +1,46 @@
+#!/bin/sh
+# templates/characterization/approve-characterization.sh.example
+#
+# Copy into your repo as `scripts/approve-characterization.sh` (drop `.example`). Promotes reviewed
+# golden-master snapshots: <name>.received.txt -> <name>.approved.txt. This is a deliberate human
+# act — approving says "this output is the behavior I want to lock in."
+#
+# ⚠️ The characterization trap: a received snapshot captures what the code DOES, which may include a
+# BUG. Do NOT blindly approve. Read the received content first; if it is wrong, fix the code (or
+# record the defect) instead of approving. Approving canonizes the behavior as the spec.
+#
+# Usage:
+#   sh scripts/approve-characterization.sh <name>     # approve one (matches <name>.received.txt)
+#   sh scripts/approve-characterization.sh --list      # list pending received snapshots
+#   sh scripts/approve-characterization.sh --all       # approve ALL pending (use with care)
+set -eu
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+APPROVALS_DIR="${APPROVALS_DIR:-src/test/resources/approved}"
+cd "$ROOT/$APPROVALS_DIR" 2>/dev/null || { echo "No approvals dir: $APPROVALS_DIR"; exit 0; }
+
+list() { find . -name '*.received.txt' | sed 's#^\./##'; }
+
+promote_one() {
+  rcv="$1"; app="$(echo "$rcv" | sed 's/\.received\.txt$/.approved.txt/')"
+  mv "$rcv" "$app"
+  echo "approved: $app"
+}
+
+case "${1:-}" in
+  --list|"")
+    pending="$(list)"
+    [ -n "$pending" ] && { echo "Pending received snapshots (review before approving):"; echo "$pending" | sed 's/^/  /'; } \
+                      || echo "No pending received snapshots."
+    ;;
+  --all)
+    found=0
+    for rcv in $(list); do promote_one "$rcv"; found=1; done
+    [ "$found" -eq 0 ] && echo "Nothing to approve."
+    ;;
+  *)
+    name="$1"; rcv="${name}.received.txt"
+    [ -f "$rcv" ] || { echo "No received snapshot for '$name' ($APPROVALS_DIR/$rcv)"; exit 1; }
+    promote_one "$rcv"
+    ;;
+esac

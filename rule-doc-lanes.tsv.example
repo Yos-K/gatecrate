@@ -1,0 +1,19 @@
+# rule-doc-lanes.tsv.example — consumer template for check-rule-doc-currency.sh.
+# Copy to your repo root as rule-doc-lanes.tsv and replace the sample lanes with your own.
+#
+# Each non-comment line is ONE lane, TAB-separated:
+#   <lane_name>\t<trigger_regex>\t<doc_regex>\t[<exempt_trailer>]
+#     trigger_regex : ERE over changed paths (git diff --name-only). Match = a rule-bearing file was touched.
+#     doc_regex     : ERE over changed paths. Match = the matching doc was updated (= currency OK).
+#     exempt_trailer: optional legacy commit trailer that exempts THIS lane. Usually leave empty.
+# `#` lines and blank lines are ignored. Columns MUST be real tabs, not spaces.
+#
+# The universal `Docs-Impact:` commit trailer always exempts every fired lane (declare it for a pure
+# refactor/rename/infra change that alters no rule): `Docs-Impact: none (pure refactor)`.
+#
+# Pattern: map each rule-bearing source file to the docs/spec/<area>.md that documents its rules
+# (see the spec-rules guide and templates/spec/). Sample lanes (DELETE — these are illustrative):
+#
+# domain-values<TAB>^src/domain/(title|description)\.ts$<TAB>^docs/spec/domain-values\.md$
+# pricing<TAB>^src/pricing/.+\.ts$<TAB>^docs/spec/pricing\.md$
+# persistence<TAB>^src/infra/.+-repository\.ts$<TAB>^docs/spec/persistence\.md$

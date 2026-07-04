@@ -1,0 +1,46 @@
+# Spec (rule) docs — consumer template
+
+Copy this directory into your repo as `docs/spec/`. It is the **reflect/specify** lane of the
+spec-driven loop: write each rule down once, in the mini-language, so a test (and — for an
+order/concurrency rule — a model assert) can cite it by ID. See the gatecrate
+[`spec-rules`](https://github.com/Yos-K/gatecrate/blob/main/docs/spec-rules.md) guide for the full
+rationale. Replace this index and `area.md` with your project's areas.
+
+## Mini-language
+
+| Form | Meaning | Example |
+|---|---|---|
+| `R-n invariant "..."` | a condition that must always hold | `R-1 invariant "title is 1..200 chars"` |
+| `R-n policy "..." when <Event>` | an automatic consequence of an event | `R-7 policy "re-list after a successful mutation" when MutationSucceeded` |
+| `R-n error <Name> "..."` | a named failure / forbidden state | `R-12 error Corrupted "stored data is malformed"` |
+
+Write the description in domain words, not code. The ID is the reference point for the test.
+
+## 1 rule = 2 reflections
+
+| Reflection | Role | When |
+|---|---|---|
+| implementation **test** (example / PBT) | rejection signal on real code, every PR in CI | every rule |
+| model **assert** (Alloy / TLA+) | exhaustive state-space check of operation orderings | **order/concurrency rules only** |
+
+Pure input-space invariants need only the test. If you have no model tooling, mark an order rule
+`model: candidate`.
+
+## intent/defect gate (the one human step)
+
+A rule derived from how the code *currently behaves* must be classified by a human as **intent**
+(matches the spec/requirements) or **defect** (a bug to fix) before it is canonized — otherwise a
+test freezes a bug as spec. Mark fresh rules `R-? (draft, needs intent/defect classification)`.
+
+## Keeping it honest (rule-doc currency)
+
+Wire `check-rule-doc-currency.sh` so these docs can't drift from the code: copy
+`rule-doc-lanes.tsv.example` to your repo root as `rule-doc-lanes.tsv`, map each rule-bearing source
+file to its `docs/spec/<area>.md`, and run the gate in CI (a PR that edits a rule-bearing file
+without updating its spec then fails; a pure refactor declares `Docs-Impact: none (...)`).
+
+## Areas
+
+| Area | File | Rules |
+|---|---|---|
+| (example) | [area.md](area.md) | replace with your areas |

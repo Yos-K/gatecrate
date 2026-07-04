@@ -1,0 +1,5 @@
+provider: claude
+model: sonnet
+language: ja
+workflow_command_gates:
+  custom_scripts: true

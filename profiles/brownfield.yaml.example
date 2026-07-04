@@ -1,0 +1,26 @@
+# profiles/brownfield.yaml.example
+# テストの無い/希薄な既存コード（レガシー）に「最初に入れる線」。
+# 用途: 既存ロジックはあるがテストが無い or カバレッジが極端に低いプロジェクト（JVM=jacoco / rust・typescript・python=lcov / go=coverprofile を COVERAGE_FORMAT で選ぶ）。
+#
+# なぜ standard ではダメか: standard の run-tests/koverVerify は絶対 floor（coverage>=80）で、テストゼロの
+# レガシーは初日に必ず落ち、ゲートごと外され、安全網は永遠に育たない。brownfield は絶対水準を要求せず、
+# diff-coverage（このPRで追加/変更した行だけに被覆を要求する ratchet）で「新規分から安全網を張る」。
+# レガシー本体には一切手を入れさせない＝導入の摩擦が無く、PR を重ねるほどベースラインが上がる。
+#
+# 昇格パス: ベースラインが育ったら standard（絶対 floor）→ full（mutation）へ段階的に引き上げる。
+#   詳細: docs/test-selection-roi.md「レガシー（テスト希薄）の入口」。
+
+profile: brownfield
+layers:
+  - core
+adapters: []
+components:
+  - check-conventional-title.sh
+  - check-no-committed-secrets.sh
+  - check-file-line-limit.sh
+  # ratchet 型テストレーン: 変更行のみ被覆を要求（COVERAGE_REPORT は消費側がテストで生成した JaCoCo XML）。
+  # harness.config.sh で COVERAGE_REPORT / DIFF_BASE / DIFF_COVERAGE_THRESHOLD を設定する。
+  - check-diff-coverage.sh
+  # 任意（advisory・ブロックしない）: ホットスポット可視化。レガシーの複雑度/結合の高い箇所を測る。
+  #   - measure-complexity.sh
+  #   - measure-coupling.sh

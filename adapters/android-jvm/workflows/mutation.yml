@@ -1,0 +1,95 @@
+# [Android-JVMアダプタ] ミューテーションテストワークフロー（PITest / JVM直接実行）
+# A+B 戦略（docs/mutation-strategy.md）: PR は「logic-layer 変更が無ければスキップ」の差分床（下の
+# Detect logic-layer changes が既に実装）＝A。schedule（nightly）は PR base が無いので run=true となり
+# trunk を構成どおりフル実行＝B。PIT のネイティブ per-line diff は plugin 要のため本アダプタは schedule-first。
+name: Mutation
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'   # B: nightly full mutation on the trunk (docs/mutation-strategy.md §5)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Detect logic-layer changes
+        id: changed
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED="$(git diff --name-only "$BASE...HEAD")"
+          # Customize PATTERN to match your project's logic layer package paths
+          LOGIC_PACKAGE_PATH="${LOGIC_PACKAGE_PATH:-src/main/java}"
+          PATTERN="^${LOGIC_PACKAGE_PATH}/.*\\.(java|kt)\$"
+          PATTERN="$PATTERN"'|^src/(main|test)/(java|kotlin)/.*\.(java|kt)$'
+          PATTERN="$PATTERN"'|^scripts/run-mutation-tests\.sh$'
+          PATTERN="$PATTERN"'|^scripts/android-kotlin-compile\.sh$'
+          PATTERN="$PATTERN"'|^\.github/workflows/mutation\.yml$'
+          if printf '%s\n' "$CHANGED" | grep -qE "$PATTERN"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Logic-layer changes detected; running mutation analysis."
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No logic-layer changes; skipping mutation analysis."
+          fi
+
+      - name: Cache mutation tool jars
+        if: steps.changed.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/mutation/lib
+          key: mutation-jars-${{ hashFiles('scripts/run-mutation-tests.sh') }}
+
+      - name: Run mutation tests
+        if: steps.changed.outputs.run == 'true'
+        env:
+          # Set BUILDCONFIG_PACKAGE, TARGET_CLASSES, TARGET_TESTS in harness.config.sh
+          MUTATION_THRESHOLD: ${{ vars.MUTATION_THRESHOLD || '79' }}
+        run: sh scripts/run-mutation-tests.sh
+
+      - name: Publish triage to job summary
+        if: always() && steps.changed.outputs.run == 'true'
+        run: |
+          TRIAGE=build/mutation/report/triage.txt
+          if [ -f "$TRIAGE" ]; then
+            {
+              echo "## Mutation triage"
+              echo "Fix SURVIVED first; never lower the floor."
+              echo '```'
+              cat "$TRIAGE"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload mutation report
+        if: always() && steps.changed.outputs.run == 'true'
+        uses: actions/upload-artifact@v5
+        with:
+          name: mutation-report
+          path: build/mutation/report
+          if-no-files-found: ignore

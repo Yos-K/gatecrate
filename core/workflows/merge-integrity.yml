@@ -1,0 +1,69 @@
+# [汎用core] Merge Integrity — auto-merge レースの機械検知（スタック非依存）。
+#
+# WHY: 全チェック緑+未解決スレッドのみの PR に対応コミットを push し、直後にスレッドを
+# 解決すると、新コミットの CI 完了を待たず「旧 head」でマージが発火し、最後のコミットが
+# 既定ブランチから漏れることがある（GitHub の仕様上、ブランチ保護では防げない）。
+# 予防は不可能なので「検知層」: マージ直後に「PR の最終 head がマージ結果に含まれるか」を
+# 機械検証し、漏れがあれば issue を起票して赤で知らせる。
+#
+# 責務分離: 検出ロジックは core/scripts/check-merge-integrity.sh（純 git・決定論・テスト可能）に
+# あり、本ワークフローはその薄いラッパ。issue 起票の文面ポリシーは消費者ごとに違うので
+# ワークフロー側に残す（スクリプトは exit 1 を返すだけ）。
+#
+# Drop into the consumer at .github/workflows/merge-integrity.yml.
+# squash / rebase マージでは head SHA が履歴に残らず検証不能 -> スクリプトが SKIP(exit 0)。
+
+name: Merge Integrity
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verify-merged-content:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+
+      - name: Verify PR head is contained in the merge result
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # ブランチは auto-delete されうるので PR ref から head を取得する。
+          git fetch origin "pull/${PR_NUMBER}/head" || true
+
+          # 検出は core スクリプトに委譲（純 git・決定論）。
+          # exit 0 = ok もしくは squash/rebase で SKIP, exit 1 = レース検知, exit 2 = 解決不能。
+          if OUT="$(sh scripts/check-merge-integrity.sh "$HEAD_SHA" "$MERGE_SHA" 2>&1)"; then
+            printf '%s\n' "$OUT"
+            exit 0
+          fi
+          rc=$?
+          printf '%s\n' "$OUT"
+          if [ "$rc" -ne 1 ]; then
+            echo "::error::merge-integrity could not verify the merge (exit $rc)"
+            exit "$rc"
+          fi
+
+          # exit 1 = レース検知。漏れたコミットを issue 化して赤で知らせる。
+          echo "::error::auto-merge race detected: PR #${PR_NUMBER} merged at an older head"
+          MISSING="$(git log --oneline "$MERGE_SHA..$HEAD_SHA" | head -20)"
+          gh issue create \
+            --title "auto-merge race: commits from PR #${PR_NUMBER} are missing from the default branch" \
+            --label bug \
+            --body "$(printf 'The Merge Integrity workflow detected an auto-merge race.\n\n- PR: #%s\n- Merge commit: %s\n- PR final head: %s\n\nMissing commits:\n```\n%s\n```\n\nRecovery: cherry-pick the missing commit(s) onto a fresh branch and re-open the PR.\nPrevention: after pushing review-fix commits, resolve threads only after the new CI completes.' "$PR_NUMBER" "$MERGE_SHA" "$HEAD_SHA" "$MISSING")"
+          exit 1

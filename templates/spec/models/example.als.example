@@ -1,0 +1,62 @@
+// Spec model SKELETON — copy to docs/domain/models/<area>.als and replace the example domain.
+//
+// WHAT THIS IS: a checkable formal spec for ONE area of your domain. Each `.als` encodes the
+// area's rules (invariants / policies) plus `check ... expect N` commands. Alloy exhaustively
+// explores a small finite state space and fails (non-zero) when a guarantee unexpectedly gains
+// or loses a counterexample — catching a rule-level regression at the DESIGN stage, before any
+// code exists to test. This sits one sieve "left" of your tests; see docs/spec-rules.md.
+//
+// HOW IT RUNS: `sh scripts/check-domain-model.sh` (advisory by default — skips cleanly if the
+// Alloy toolchain is unavailable; a real counterexample is the only thing that fails it).
+//
+// FILE-HEADER CONVENTION (fill these in for your area — they make the model self-documenting):
+//   - Purpose:        which area / rule-doc this formalizes (e.g. docs/spec/<area>.md).
+//   - Rule IDs:       the R-<n> ids this model reflects (1 rule = 2 reflections: a test + this assert).
+//   - Implementation: the source files this model MIRRORS (the model is the spec, not the code under
+//                     test — list the files so a reader can cross-check, e.g. src/.../Foo.<ext>).
+//   - Run:            scripts/check-domain-model.sh
+//
+// ---- EXAMPLE (delete and replace with your domain) ----
+// Purpose:        formalize docs/spec/order.md state rules.
+// Rule IDs:       R-1 (an item leaves Open exactly once), R-2 (Cancelled is terminal).
+// Implementation: src/domain/Order.<ext> (transition()).
+// Run:            scripts/check-domain-model.sh
+
+module example
+
+// ---- Vocabulary: the finite set of states/values of this area (one enum or sig) ----
+// Replace with your domain's states. An enum is the typical shape for a closed state set.
+enum State { Open, Closed, Cancelled }
+
+// A thing that holds a state. Add the fields your invariant needs (kept minimal here).
+sig Item {
+  state: one State
+}
+
+// ---- Derived vocabulary (optional): name a meaningful subset, the way code names a predicate ----
+// Terminal states: once here, no further transition is allowed (used by the invariant below).
+fun terminalStates: set State { Closed + Cancelled }
+
+// ---- Invariant (R-1): the condition the area must ALWAYS satisfy ----
+// Phrase the predicate in domain terms; this is the model shadow of the implementation test.
+// EXAMPLE rule: "every item is in exactly one of the known states" (trivially true here — replace
+// with the real constraint your area enforces, e.g. relating two fields, or a multiplicity).
+pred itemStateIsWellFormed[i: Item] {
+  one i.state
+}
+
+// ---- Assertion + check: ask Alloy to PROVE the invariant holds for all small instances ----
+// `expect 0` = "there should be NO counterexample". If a future edit lets the invariant be
+// violated, Alloy finds an instance and the check fails (non-zero) — the regression signal.
+// Map the assert name to a rule ID in a comment so rule -> test -> assert stays traceable.
+assert ItemStateIsAlwaysWellFormed {        // R-1
+  all i: Item | itemStateIsWellFormed[i]
+}
+check ItemStateIsAlwaysWellFormed for 5 expect 0
+
+// ---- (Optional) An INTENDED counterexample: `expect 1` documents a deliberate gap ----
+// Use this to assert that a property does NOT hold by design (e.g. a deliberately non-injective
+// fail-safe mapping). It documents intent so a reviewer does not "fix" it. Delete if unused.
+//
+// assert SomethingThatShouldNotHold { ... }
+// check SomethingThatShouldNotHold for 5 expect 1

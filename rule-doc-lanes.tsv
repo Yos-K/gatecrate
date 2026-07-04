@@ -1,0 +1,8 @@
+# rule-doc-lanes.tsv — gatecrate 自身の「規則担持ファイル → 必須ドキュメント」レーン定義
+# check-rule-doc-currency.sh が読む。<lane_name>\t<trigger_regex>\t<doc_regex>\t[<exempt_trailer>]
+# trigger/doc は変更パス(git diff --name-only)への ERE。# 行と空行は無視。
+# 普遍トレーラ `Docs-Impact:` は常に全レーンを免除（純リファクタ/改名/インフラ時に宣言）。
+#
+# gatecrate のドッグフード方針: 出荷スクリプト(core/adapters)を変えたら CHANGELOG に必ず記録する。
+# 「挙動を足したのに変更履歴に出ない」を機械的に止める（実害: 消費者が把握できない silent change）。
+ship-scripts	^(core|adapters)/scripts/.+	^CHANGELOG\.md$
