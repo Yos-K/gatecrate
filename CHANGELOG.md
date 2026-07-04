@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **ダッシュボードsnapshotへ Next action 列を反映（#1・#152のフォローアップ）**: 生成済み `docs/harness-status.md` が
+  旧4列のままだったため、workflowと同一コマンドで再生成。`not-probed`/ROI未確定の各行に次の保守アクションが出る。
+- **OS メタデータの自己ハイジーンテスト（#2）**: `.DS_Store` 等が tracked に無いこと・`.gitignore` の予防エントリが
+  在ることを毎CIで検証する `tests/test-no-os-metadata.sh` を追加（現mainに混入は無し・予防を機械化）。
+
+### Fixed
 - **localmd-reader からのフィードバック5件（#149-153）**: (#152) ハーネスダッシュボード
   `render-harness-dashboard.sh` に **Next action 列**を追加し、`not-probed`/DEAD/untyped/ROI未確定 の各非終端状態を
   具体的な保守アクションに接続（テスト更新）。(#149) `docs/design/expansion-loop.md` を実態に整合——

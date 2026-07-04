@@ -42,44 +42,44 @@ xychart-beta
     line [18, 34]
 ```
 
-| Gate | Type | Liveness | ROI verdict |
-|---|---|---|---|
-| `check-bc-domain.sh` | prevention | — | — |
-| `check-conventional-title.sh` | prevention | ✅ ALIVE | — |
-| `check-diff-coverage.sh` | detection | — | — |
-| `check-doc-currency.sh` | prevention | ✅ ALIVE | — |
-| `check-domain-model.sh` | advisory | — | — |
-| `check-es-assertions.sh` | prevention | — | — |
-| `check-es-deliverables.sh` | prevention | — | — |
-| `check-es-evidence.sh` | prevention | — | — |
-| `check-evidence-resolves.sh` | prevention | — | — |
-| `check-file-line-limit.sh` | prevention | ✅ ALIVE | — |
-| `check-gate-classified.sh` | prevention | — | — |
-| `check-gate-tests.sh` | prevention | — | — |
-| `check-hard-constraints.sh` | prevention | — | — |
-| `check-jargon.sh` | prevention | — | — |
-| `check-kit-drift.sh` | advisory | — | — |
-| `check-merge-integrity.sh` | prevention | ✅ ALIVE | — |
-| `check-model-refuted.sh` | prevention | — | — |
-| `check-modularity-ratchet.sh` | prevention | ✅ ALIVE | — |
-| `check-mutation-escalation.sh` | prevention | ✅ ALIVE | — |
-| `check-no-committed-secrets.sh` | prevention | ✅ ALIVE | — |
-| `check-no-received-approvals.sh` | prevention | — | — |
-| `check-posix-portability.sh` | prevention | ✅ ALIVE | — |
-| `check-release-version-name.sh` | prevention | ✅ ALIVE | — |
-| `check-rule-doc-currency.sh` | prevention | ✅ ALIVE | — |
-| `check-term-relations.sh` | prevention | — | — |
-| `check-test-compiles.sh` | detection | — | — |
-| `check-third-party-notices.sh` | prevention | ✅ ALIVE | — |
-| `es-cmap-lint.sh` | prevention | — | — |
-| `es-coverage.sh` | advisory | — | — |
-| `es-lint-info.sh` | prevention | — | — |
-| `es-lint.sh` | prevention | — | — |
-| `measure-complexity.sh` | advisory | — | — |
-| `measure-coupling.sh` | advisory | — | — |
-| `measure-modularity.sh` | advisory | — | — |
+| Gate | Type | Liveness | ROI verdict | Next action |
+|---|---|---|---|---|
+| `check-bc-domain.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-conventional-title.sh` | prevention | ✅ ALIVE | — | — |
+| `check-diff-coverage.sh` | detection | — | — | collect firing history (gh) to judge ROI |
+| `check-doc-currency.sh` | prevention | ✅ ALIVE | — | — |
+| `check-domain-model.sh` | advisory | — | — | confirm the signal is consumed (human); else downgrade/remove |
+| `check-es-assertions.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-es-deliverables.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-es-evidence.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-evidence-resolves.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-file-line-limit.sh` | prevention | ✅ ALIVE | — | — |
+| `check-gate-classified.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-gate-tests.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-hard-constraints.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-jargon.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-kit-drift.sh` | advisory | — | — | confirm the signal is consumed (human); else downgrade/remove |
+| `check-merge-integrity.sh` | prevention | ✅ ALIVE | — | — |
+| `check-model-refuted.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-modularity-ratchet.sh` | prevention | ✅ ALIVE | — | — |
+| `check-mutation-escalation.sh` | prevention | ✅ ALIVE | — | — |
+| `check-no-committed-secrets.sh` | prevention | ✅ ALIVE | — | — |
+| `check-no-received-approvals.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-posix-portability.sh` | prevention | ✅ ALIVE | — | — |
+| `check-release-version-name.sh` | prevention | ✅ ALIVE | — | — |
+| `check-rule-doc-currency.sh` | prevention | ✅ ALIVE | — | — |
+| `check-term-relations.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-test-compiles.sh` | detection | — | — | collect firing history (gh) to judge ROI |
+| `check-third-party-notices.sh` | prevention | ✅ ALIVE | — | — |
+| `es-cmap-lint.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `es-coverage.sh` | advisory | — | — | confirm the signal is consumed (human); else downgrade/remove |
+| `es-lint-info.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `es-lint.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `measure-complexity.sh` | advisory | — | — | confirm the signal is consumed (human); else downgrade/remove |
+| `measure-coupling.sh` | advisory | — | — | confirm the signal is consumed (human); else downgrade/remove |
+| `measure-modularity.sh` | advisory | — | — | confirm the signal is consumed (human); else downgrade/remove |
 
-_Liveness from `probe-gate-liveness` (prevention gates without a synthetic injector show `—`); ROI verdict from `gate-roi-verdict` (needs a firing TSV / gh). Tooling (not-a-gate) excluded._
+_Liveness from `probe-gate-liveness` (prevention gates without a synthetic injector show `—`); ROI verdict from `gate-roi-verdict` (needs a firing TSV / gh). **Next action** turns each non-final state (`—` not-probed, DEAD, untyped, unavailable ROI) into the concrete maintenance step; `—` in that column means healthy/no action. Tooling (not-a-gate) excluded._
 
 ### How gates are judged
 
