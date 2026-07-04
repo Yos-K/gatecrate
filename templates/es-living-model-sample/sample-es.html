@@ -27,6 +27,14 @@
   .view{display:flex;flex:1;min-height:0;flex-direction:column} .view.hidden{display:none}
   .report{flex:1;overflow:auto;padding:14px 22px;line-height:1.7} .report h2{margin:.2em 0;font-size:18px} .report h3{margin:1.1em 0 .3em;font-size:15px} .bizrow{margin:6px 0} .bizcard{border:1px solid #dee2e6;border-radius:7px;padding:10px 12px;margin:9px 0;background:#fff}
   .obs{border-collapse:collapse;width:100%;font-size:12px;margin:8px 0} .obs th,.obs td{border:1px solid #dee2e6;padding:5px 7px;text-align:left;vertical-align:top} .obs th{background:#f1f3f5;white-space:nowrap} .cldwrap{border:1px solid #dee2e6;border-radius:7px;padding:6px;margin:6px 0;background:#fff;overflow:auto}
+  /* 辞書カード（動詞の受理パネル＋状態の双対カード） */
+  .cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin:10px 0 18px}
+  .dictcard{border:1px solid #dee2e6;border-radius:9px;padding:10px 13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .verbcard{border-top:4px solid var(--command)} .statecard{border-top:4px solid var(--aggregate)}
+  .dch{font-weight:700;font-size:15px;margin-bottom:4px} .dctype{float:right;font-size:11px;font-weight:600;padding:1px 8px;border-radius:9px}
+  .sig{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:6px;padding:5px 8px;margin:5px 0}
+  .acc{border-collapse:collapse;width:100%;font-size:12px;margin:7px 0} .acc td{border:1px solid #e9ecef;padding:4px 8px}
+  .acc td:first-child{white-space:nowrap;font-weight:600} .accok{background:#ebfbee} .accng{background:#fff5f5;color:#666}
   .report table{border-collapse:collapse;margin:8px 0;font-size:13px;width:100%} .report th,.report td{border:1px solid #dee2e6;padding:5px 8px;text-align:left;vertical-align:top} .report th{background:#f1f3f5} .report ul,.report ol{margin:6px 0;padding-left:1.5em} .report code{background:#f1f3f5;padding:1px 4px;border-radius:3px;font-size:12px} .report pre.code{background:#f8f9fa;border:1px solid #e9ecef;padding:8px;overflow:auto;font-size:12px;line-height:1.4} .report hr{border:0;border-top:2px dashed #ced4da;margin:24px 0}
   /* 分析レポート: 各docを中央寄せの紙カードにし、行長を制限して読みやすく */
   .report.analysis{background:#eef1f4;padding:26px 18px}
@@ -341,9 +349,9 @@ MODELS.asis=
 {
   "act_cust":{"type":"actor","label":"購入者","invariant":"","evidence":"","fields":"","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"注文を出す利用者。業務の起点。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"act_cust | 変わらず。なぜ: 注文の起点は同じだから。","out":[{"rel":"issues","to":"cmd_order","when":""}],"in":[],"spec":{"in":[],"steps":[],"out":[]}},
   "cmd_order":{"type":"command","label":"注文処理","invariant":"","evidence":"OrderService.java:40","fields":"","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"注文受付〜在庫確認〜与信〜売上確定〜確定を1メソッドで行う厚いエントリ。責務が集中。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"cmd_place,cmd_auth,cmd_capture | 受付/与信/確定に分離。なぜ: 1メソッドに複数責務が凝集し、段ごとの失敗時補償を仕様化できないため。","out":[{"rel":"handles","to":"agg_svc","when":""}],"in":[{"rel":"issues","from":"act_cust","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
-  "agg_svc":{"type":"aggregate","label":"注文処理(OrderService)","invariant":"在庫>=数量 かつ 決済成功でのみ注文確定","evidence":"OrderService.java:40","fields":"","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"注文・在庫・決済の状態が混在する手続き的サービス。決済状態が各所に散在。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"agg_order,agg_pay | 注文集約と決済集約(状態機械)に分割。なぜ: 注文と決済の状態が混ざると二重課金・順序違反を型で防げないため。","out":[{"rel":"emits","to":"evt_done","when":""},{"rel":"emits","to":"evt_fail","when":""}],"in":[{"rel":"handles","from":"cmd_order","when":""},{"rel":"marks","from":"hs_pay","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
-  "evt_done":{"type":"event","label":"注文完了","invariant":"","evidence":"OrderService.java:120","fields":"","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"注文と決済が成立した事実(成功応答)。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"evt_captured | 売上確定イベントとして明示。なぜ: 収益/価値の事実を明示しないと事業計測の起点が定まらないため。","out":[],"in":[{"rel":"emits","from":"agg_svc","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
-  "evt_fail":{"type":"event","label":"注文失敗","invariant":"","evidence":"OrderService.java:150","fields":"","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"与信失敗等で注文が成立しなかった事実。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"evt_authng,evt_refunded | 与信失敗と返金に分離。なぜ: 失敗の事実と補償の事実は別の関心で、別々に駆動する必要があるため。","out":[],"in":[{"rel":"emits","from":"agg_svc","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
+  "agg_svc":{"type":"aggregate","label":"注文処理(OrderService)","invariant":"在庫>=数量 かつ 決済成功でのみ注文確定","evidence":"OrderService.java:40","fields":"注文ID:識別; 在庫数:確認時点の値; 決済状態コード:[0|1|2](各所が部分解釈・正典定義なし)","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"注文・在庫・決済の状態が混在する手続き的サービス。決済状態が各所に散在。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"agg_order,agg_pay | 注文集約と決済集約(状態機械)に分割。なぜ: 注文と決済の状態が混ざると二重課金・順序違反を型で防げないため。","out":[{"rel":"emits","to":"evt_done","when":""},{"rel":"emits","to":"evt_fail","when":""}],"in":[{"rel":"handles","from":"cmd_order","when":""},{"rel":"marks","from":"hs_pay","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
+  "evt_done":{"type":"event","label":"注文完了","invariant":"","evidence":"OrderService.java:120","fields":"注文ID:識別; 決済状態コード:成功を示す値(部分解釈)","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"注文と決済が成立した事実(成功応答)。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"evt_captured | 売上確定イベントとして明示。なぜ: 収益/価値の事実を明示しないと事業計測の起点が定まらないため。","out":[],"in":[{"rel":"emits","from":"agg_svc","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
+  "evt_fail":{"type":"event","label":"注文失敗","invariant":"","evidence":"OrderService.java:150","fields":"注文ID:識別; 失敗理由:与信失敗等の文字列","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"与信失敗等で注文が成立しなかった事実。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"evt_authng,evt_refunded | 与信失敗と返金に分離。なぜ: 失敗の事実と補償の事実は別の関心で、別々に駆動する必要があるため。","out":[],"in":[{"rel":"emits","from":"agg_svc","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
   "hs_pay":{"type":"hotspot","label":"決済状態コードの正典定義が無い（二重課金リスク）","invariant":"","evidence":"","fields":"","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"決済の状態コード(0/1/2…)の正典定義が不在で各所が部分解釈する論点。誤分類が二重課金に直結する最重要hotspot。","discuss":"決めること: 決済状態コードの全定義を誰が持つか。 / なぜ重要: 誤分類が二重課金に直結。 / 決裁者: 決済設計者。","biz":"","measure":"","capture":"","compute":"","becomes":"agg_pay | 状態遷移を正典化。なぜ: 定義書の欠如で部分解釈が誤分類を生むため、状態機械で表現不能にする。","out":[{"rel":"marks","to":"agg_svc","when":""}],"in":[],"spec":{"in":[],"steps":[],"out":[]}}
 }
 ;
@@ -567,9 +575,60 @@ function termDef(n){
   if(n.discuss) return "論点: "+n.discuss;
   return "<span class=\"muted\">(定義未記入)</span>";
 }
+// ===== 辞書カード: 動詞が暗黙に生む状態区別を展開する（transitions= から機械導出）=====
+// 「決済する」という語の存在が「決済可能／不可能」の区別を生む。✓（できる）だけでなく
+// ✗（できない＝防いでいる事故）まで明示し、前提状態を誰が生むか（能力の供給網）も描く。
+function parseTransitions(t){
+  if(!t) return [];
+  return t.split(";").map(function(s){ s=s.trim(); if(!s) return null;
+    var i=s.indexOf(":"); if(i<0) return null;
+    var name=s.slice(0,i).trim(); var m=s.slice(i+1).split("->"); if(m.length<2) return null;
+    var outs=m[1].split("|").map(function(x){return x.trim();}).filter(Boolean);
+    return {name:name, from:m[0].trim(), to:outs[0], alts:outs.slice(1)};
+  }).filter(Boolean);
+}
+function dictCards(m){ var h="";
+  for(var id in m){ var n=m[id]; if(n.type!=="aggregate") continue;
+    var sts=(n.states||"").split("|").map(function(s){return s.trim();}).filter(Boolean);
+    var trs=parseTransitions(n.transitions);
+    if(sts.length<2||!trs.length) continue;
+    h+="<h3>『"+n.label+"』の動詞と状態 <span class=\"muted\">— 動詞は状態の区別を暗黙に生む。✗＝防いでいる事故</span></h3>";
+    h+="<div class=\"cardgrid\">";
+    trs.forEach(function(t){
+      var stem=t.name.replace(/する$/,"");
+      var prod=trs.filter(function(p){return p.to===t.from||p.alts.indexOf(t.from)>=0;});
+      h+="<div class=\"dictcard verbcard\"><div class=\"dch\">"+t.name+"<span class=\"dctype\" style=\"background:var(--command)\">動詞</span></div>";
+      h+="<div class=\"sig\">"+t.name+" : <b>"+t.from+"</b>の"+n.label+" ─→ "+t.to+(t.alts.length?" ｜ "+t.alts.join(" ｜ "):"")+"</div>";
+      h+="<div class=\"muted\">⚡ この語が「"+t.from+"である／でない」の区別を生む＝前提を満たした値だけを受け付ける</div>";
+      h+="<table class=\"acc\">";
+      sts.forEach(function(s){
+        if(s===t.from) h+="<tr class=\"accok\"><td>"+s+"</td><td>✓ 受け付ける ─→ "+t.to+"</td></tr>";
+        else if(s===t.to) h+="<tr class=\"accng\"><td>"+s+"</td><td>✗ 既に"+t.to+"（二重"+stem+"を防ぐ）</td></tr>";
+        else h+="<tr class=\"accng\"><td>"+s+"</td><td>✗ "+t.from+"でない（この変化は仕様が定義しない）</td></tr>";
+      });
+      h+="</table>";
+      h+="<div class=\"rel\">前提「"+t.from+"」を生むのは: "+(prod.length?prod.map(function(p){return "<span class=\"inc\">"+p.name+"</span>";}).join(" "):"<span class=\"muted\">（初期状態＝受理時に生まれる）</span>")+"</div>";
+      h+="<div class=\"muted\">実装: if(状態=="+t.from+") の実行時チェックは漏れうる → 引数の型を「"+t.from+"の"+n.label+"」にする（条件を満たさない値はそもそも渡せない）</div>";
+      h+="</div>";
+    });
+    sts.forEach(function(s){
+      var can=trs.filter(function(t){return t.from===s;});
+      var cant=trs.filter(function(t){return t.from!==s;});
+      var born=trs.filter(function(t){return t.to===s||t.alts.indexOf(s)>=0;});
+      h+="<div class=\"dictcard statecard\"><div class=\"dch\">"+s+"<span class=\"dctype\" style=\"background:var(--aggregate)\">状態</span></div>";
+      h+="<div class=\"rel\">できること: "+(can.length?can.map(function(t){return "<span class=\"orc\">✓ "+t.name+" → "+t.to+"</span>";}).join(" "):"<span class=\"muted\">（終端状態＝ここからの変化は無い）</span>")+"</div>";
+      h+="<div class=\"rel\">できないこと: "+cant.map(function(t){return "<span class=\"smell\">✗ "+t.name+"</span>";}).join(" ")+"</div>";
+      h+="<div class=\"muted\">この状態を生む動詞: "+(born.length?born.map(function(t){return t.name;}).join("・"):"（初期状態）")+"</div>";
+      h+="</div>";
+    });
+    h+="</div>";
+  }
+  return h;
+}
 function buildGlossary(){
   var m=MODELS.tobe||MODELS.asis||{}, h="";
   h+="<h2>用語集（ユビキタス言語）</h2><p class=\"muted\">.es から決定論射影（手書きしない＝モデル更新で常に最新）。用語をクリックすると図の定義元へ移動。種別ごとにグルーピング。</p>";
+  h+=dictCards(m);
   var order=["aggregate","command","event","errorevent","policy","readmodel","actor","external","hotspot"], groups={};
   for(var id in m){ var n=m[id]; (groups[n.type]=groups[n.type]||[]).push(id); }
   order.forEach(function(t){ var ids=groups[t]; if(!ids||!ids.length) return;
