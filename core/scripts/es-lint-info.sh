@@ -29,6 +29,8 @@
 #             独立に書かれた2表現（判定の出力と発火条件）の一致＝意味の三角測量。常時なら「常時」と明記
 #   R12(warn) transitions の from（と第1遷移先）が states= に宣言されていない。
 #             「from->to|fail」の fail 側（失敗の帰結）は状態でなくてよいので免除
+#   R13(warn) transitions の動詞に「// ドメイン上の意味」が無い（オーソリする＝業務で何をすることか）
+#   R14(warn) states の状態に「// ドメイン上の意味」が無い（「受信」だけでは意味が分からない）
 #
 # Usage: sh es-lint-info.sh <model.es>     ( ERROR があれば exit 1 )
 #   推奨: sh es-lint.sh m.es && sh es-lint-info.sh m.es
@@ -52,7 +54,7 @@ $1=="N"{
   fld[id]=KV["fields"]; sts[id]=KV["states"]; bin[id]=KV["in"]; bout[id]=KV["out"]; dec[id]=KV["decide"]; bhv[id]=KV["behaviors"]; bcm[id]=KV["becomes"]; trn[id]=KV["transitions"]
   # known: 全fields基底名 + 全states + event fields
   if(fld[id]!=""){ c=split(fld[id],a,/;/); for(i=1;i<=c;i++){ nm=basename(a[i]); if(nm!=""){ known[nm]=1; fldlist[id,++fc[id]]=a[i] } } }
-  if(sts[id]!=""){ c=split(sts[id],a,/\|/); for(i=1;i<=c;i++){ nm=trim(a[i]); if(nm!="") known[nm]=1 } }
+  if(sts[id]!=""){ c=split(sts[id],a,/\|/); for(i=1;i<=c;i++){ nm=a[i]; sub(/\/\/.*$/,"",nm); nm=trim(nm); if(nm!="") known[nm]=1 } }
   next
 }
 $1=="E"{
@@ -92,7 +94,10 @@ END{
     for(j=1;j<=fc[id];j++){ it=fldlist[id,j]; nm=basename(it)
       if(index(it,":")==0 && index(it,"[")==0) warn[++nw]="R4 制約なし: " id "." nm " ← :型/制約 を推奨"
       if(smell(nm) && index(it,"[")==0) warn[++nw]="R5 臭い(フラグ/コード): " id "." nm " ← OR状態 [a|b] か states/transitions へ昇格を検討" }
-    if(sts[id]!=""){ c=split(sts[id],a,/\|/); for(j=1;j<=c;j++){ nm=trim(a[j]); if(smell(nm)) warn[++nw]="R5 臭い: " id " の状態名 \"" nm "\" がコード臭い" } }
+    if(sts[id]!=""){ c=split(sts[id],a,/\|/); for(j=1;j<=c;j++){ nm=a[j]; sub(/\/\/.*$/,"",nm); nm=trim(nm); if(smell(nm)) warn[++nw]="R5 臭い: " id " の状態名 \"" nm "\" がコード臭い" } }
+    # R13/R14: 動詞(transitions)と状態(states)は「// ドメイン上の意味」を持つこと（semantics層。名前だけでは意味が分からない）
+    if(trn[id]!=""){ c=split(trn[id],a,/;/); for(j=1;j<=c;j++){ it=trim(a[j]); if(it!="" && it !~ /\/\//){ vn=it; sub(/:.*$/,"",vn); warn[++nw]="R13 動詞の意味未定義: " id " の \"" trim(vn) "\" ← 「// 意味」でドメイン上何をすることか定義（例: オーソリする // 支払い枠を確保する）" } } }
+    if(sts[id]!=""){ c=split(sts[id],a,/\|/); for(j=1;j<=c;j++){ it=trim(a[j]); if(it!="" && it !~ /\/\//){ warn[++nw]="R14 状態の意味未定義: " id " の \"" it "\" ← 「// 意味」で業務上どういう局面か定義（例: 受信 // 要求を受け取り決済が未着手）" } } }
     # R8: AS-IS→TO-BE 変化(becomes=)は「なぜ」を必ず含む（変化の理由＝因果の明示）
     if(bcm[id]!="" && index(bcm[id],"なぜ")==0) warn[++nw]="R8 理由なし: " id " の becomes= に「なぜ」が無い ← AS-IS→TO-BE変化の理由を「。なぜ: …」で記載"
   }
@@ -110,9 +115,9 @@ END{
   # R12: transitions の from（と第1遷移先）は宣言済み state であること（to|fail の fail 側は帰結として免除）
   for(i=1;i<=n;i++){ id=order[i]
     if(type[id]!="aggregate" || trn[id]=="") continue
-    delete stset; c=split(sts[id],a,/\|/); for(j=1;j<=c;j++){ nm=trim(a[j]); if(nm!="") stset[nm]=1 }
+    delete stset; c=split(sts[id],a,/\|/); for(j=1;j<=c;j++){ nm=a[j]; sub(/\/\/.*$/,"",nm); nm=trim(nm); if(nm!="") stset[nm]=1 }
     c=split(trn[id],segs,/;/)
-    for(j=1;j<=c;j++){ seg=trim(segs[j]); if(seg=="") continue
+    for(j=1;j<=c;j++){ seg=segs[j]; sub(/\/\/.*$/,"",seg); seg=trim(seg); if(seg=="") continue
       sub(/^[^:]*:/,"",seg)                               # 遷移名を除去 -> from->to|alt
       if(split(seg,ft,/->/)<2) continue
       from=trim(ft[1]); split(ft[2],tos,/\|/); to1=trim(tos[1])

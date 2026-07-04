@@ -35,6 +35,7 @@
   .sig{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:6px;padding:5px 8px;margin:5px 0}
   .acc{border-collapse:collapse;width:100%;font-size:12px;margin:7px 0} .acc td{border:1px solid #e9ecef;padding:4px 8px}
   .acc td:first-child{white-space:nowrap;font-weight:600} .accok{background:#ebfbee} .accng{background:#fff5f5;color:#666}
+  .meaning{background:#fff9db;border-left:3px solid #fab005;padding:4px 9px;margin:5px 0;font-size:12.5px;border-radius:0 5px 5px 0}
   .report table{border-collapse:collapse;margin:8px 0;font-size:13px;width:100%} .report th,.report td{border:1px solid #dee2e6;padding:5px 8px;text-align:left;vertical-align:top} .report th{background:#f1f3f5} .report ul,.report ol{margin:6px 0;padding-left:1.5em} .report code{background:#f1f3f5;padding:1px 4px;border-radius:3px;font-size:12px} .report pre.code{background:#f8f9fa;border:1px solid #e9ecef;padding:8px;overflow:auto;font-size:12px;line-height:1.4} .report hr{border:0;border-top:2px dashed #ced4da;margin:24px 0}
   /* 分析レポート: 各docを中央寄せの紙カードにし、行長を制限して読みやすく */
   .report.analysis{background:#eef1f4;padding:26px 18px}
@@ -360,12 +361,12 @@ MODELS.tobe=
   "act_cust":{"type":"actor","label":"購入者","invariant":"","evidence":"","fields":"","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"書籍を選び注文を出す利用者。業務の起点（誰が何を求めるか）。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[{"rel":"issues","to":"cmd_place","when":""}],"in":[],"spec":{"in":[],"steps":[],"out":[]}},
   "ext_pay":{"type":"external","label":"決済ゲートウェイ","invariant":"","evidence":"","fields":"","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"与信・売上確定・返金を実行する外部決済サービス。本系はこれに順応する。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[],"in":[],"spec":{"in":[],"steps":[],"out":[]}},
   "cmd_place":{"type":"command","label":"注文を受け付ける","invariant":"","evidence":"","fields":"","states":"","transitions":"","bin":"顧客ID;書籍ID;数量","bout":"受理|入力不正","decide":"\"顧客ID形式・数量>0・在庫>=数量 を満たせば受理\"","behaviors":"","note":"","role":"注文要求を検証し受理/不正を返す入口。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[{"rel":"handles","to":"agg_order","when":""}],"in":[{"rel":"issues","from":"act_cust","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
-  "agg_order":{"type":"aggregate","label":"注文","invariant":"明細は1件以上 かつ 数量は正","evidence":"","fields":"注文ID:一意キー(同一性キー); 顧客ID:利用者識別; 明細:書籍IDと数量の組","states":"受付|確定|取消","transitions":"確定する:受付->確定; 取消する:受付->取消","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"1件の注文の明細と進行状態を持つ実体。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[{"rel":"emits","to":"evt_placed","when":""}],"in":[{"rel":"handles","from":"cmd_place","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
+  "agg_order":{"type":"aggregate","label":"注文","invariant":"明細は1件以上 かつ 数量は正","evidence":"","fields":"注文ID:一意キー(同一性キー); 顧客ID:利用者識別; 明細:書籍IDと数量の組","states":"受付 // 注文を受け取り、成立がまだ確定していない局面|確定 // 注文として成立した終端|取消 // 成立せず打ち消された終端","transitions":"確定する:受付->確定 // 決済成立を受けて注文を確定させる; 取消する:受付->取消 // 在庫切れ・決済失敗時に注文を打ち消す","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"1件の注文の明細と進行状態を持つ実体。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[{"rel":"emits","to":"evt_placed","when":""}],"in":[{"rel":"handles","from":"cmd_place","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
   "evt_placed":{"type":"event","label":"注文された","invariant":"","evidence":"","fields":"注文ID:一意キー; 顧客ID:利用者識別","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"注文が受理された事実。","discuss":"","biz":"value","measure":"受理率(受理/要求)。ファネル入口の健全性(ここで弾かれると価値に到達しない)。","capture":"注文イベント発火点で構造化ログ(注文ID,顧客ID,発生時刻)を出力。","compute":"受理率＝集計期間(例5分間)あたりの 受理件数÷要求件数。","becomes":"","out":[{"rel":"triggers","to":"pol_gate","when":""}],"in":[{"rel":"emits","from":"agg_order","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
   "pol_gate":{"type":"policy","label":"決済可否を判定","invariant":"","evidence":"","fields":"","states":"","transitions":"","bin":"在庫数;明細","bout":"決済可|在庫切れ","decide":"\"在庫数>=明細の数量 なら決済可、満たさなければ在庫切れ\"","behaviors":"","note":"","role":"在庫を確認して決済へ進めるか判定する関門。決済可のときだけ与信へ。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[{"rel":"issues","to":"cmd_auth","when":"決済可"}],"in":[{"rel":"triggers","from":"evt_placed","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
   "rm_inv":{"type":"readmodel","label":"在庫ビュー","invariant":"","evidence":"","fields":"書籍ID:識別; 在庫数:0以上の整数","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"書籍の在庫数を参照するビュー。決済可否判定の入力。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[],"in":[{"rel":"feeds","from":"evt_captured","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
   "cmd_auth":{"type":"command","label":"与信を依頼する","invariant":"","evidence":"","fields":"","states":"","transitions":"","bin":"決済ID;金額","bout":"与信済|与信失敗","decide":"\"決済IDで冪等(何度実行しても結果が同じ)に与信要求を送る\"","behaviors":"","note":"","role":"決済の与信を外部へ要求し、決済の最初の遷移を起こすコマンド。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[{"rel":"handles","to":"agg_pay","when":""}],"in":[{"rel":"issues","from":"pol_gate","when":"決済可"}],"spec":{"in":[],"steps":[],"out":[]}},
-  "agg_pay":{"type":"aggregate","label":"決済","invariant":"遷移は定義された矢印のみ かつ 決済IDで冪等(何度実行しても結果が同じ)","evidence":"","fields":"決済ID:一意キー(同一性キー); 金額:通貨額","states":"受信|与信済|売上確定|返金済","transitions":"与信する:受信->与信済|与信失敗; 売上確定する:与信済->売上確定; 返金する:与信済->返金済","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"1回の決済の進行状態(受信→与信→売上確定/返金)を持ち、二重課金と順序違反を防ぐ中核。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[{"rel":"emits","to":"evt_authed","when":""},{"rel":"emits","to":"evt_authng","when":""},{"rel":"emits","to":"evt_captured","when":""},{"rel":"emits","to":"evt_refunded","when":""}],"in":[{"rel":"handles","from":"cmd_auth","when":""},{"rel":"handles","from":"cmd_capture","when":""},{"rel":"handles","from":"cmd_refund","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
+  "agg_pay":{"type":"aggregate","label":"決済","invariant":"遷移は定義された矢印のみ かつ 決済IDで冪等(何度実行しても結果が同じ)","evidence":"","fields":"決済ID:一意キー(同一性キー); 金額:通貨額","states":"受信 // 決済要求を受け取り、与信がまだの初期局面|与信済 // 支払い枠を確保済み(金銭は未確定)|売上確定 // 請求が確定し売上計上された終端|返金済 // 支払いを打ち消した終端","transitions":"与信する:受信->与信済|与信失敗 // 決済手段に支払い枠を確保する(まだ金銭は動かない); 売上確定する:与信済->売上確定 // 確保した枠の請求を確定し売上として計上する; 返金する:与信済->返金済 // 確保した枠を解放し支払いを打ち消す(補償)","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"1回の決済の進行状態(受信→与信→売上確定/返金)を持ち、二重課金と順序違反を防ぐ中核。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[{"rel":"emits","to":"evt_authed","when":""},{"rel":"emits","to":"evt_authng","when":""},{"rel":"emits","to":"evt_captured","when":""},{"rel":"emits","to":"evt_refunded","when":""}],"in":[{"rel":"handles","from":"cmd_auth","when":""},{"rel":"handles","from":"cmd_capture","when":""},{"rel":"handles","from":"cmd_refund","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
   "evt_authed":{"type":"event","label":"与信した","invariant":"","evidence":"","fields":"決済ID:一意キー","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"与信(支払い枠の確保)ができた事実。次の売上確定へ進める。","discuss":"","biz":"revenue","measure":"与信成功率(収益への前進・ファネル中間)。","capture":"","compute":"","becomes":"","out":[{"rel":"triggers","to":"pol_settle","when":""}],"in":[{"rel":"emits","from":"agg_pay","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
   "evt_authng":{"type":"event","label":"与信が失敗した","invariant":"","evidence":"","fields":"決済ID:一意キー; 理由:失敗コード","states":"","transitions":"","bin":"","bout":"","decide":"","behaviors":"","note":"","role":"与信が取れなかった事実。返金補償を起こす。","discuss":"","biz":"degrade","measure":"与信失敗率・理由別内訳。UX毀損の主因・収益漏れ点。","capture":"","compute":"","becomes":"","out":[{"rel":"triggers","to":"pol_comp","when":""}],"in":[{"rel":"emits","from":"agg_pay","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
   "pol_settle":{"type":"policy","label":"売上確定の要否を判定","invariant":"","evidence":"","fields":"","states":"","transitions":"","bin":"決済状態","bout":"確定|補償","decide":"\"決済状態が与信済なら売上確定。それ以外は返金補償へ\"","behaviors":"","note":"","role":"与信済の決済を売上計上(確定)してよいか判断するルール。確定のときだけ確定コマンドへ。","discuss":"","biz":"","measure":"","capture":"","compute":"","becomes":"","out":[{"rel":"issues","to":"cmd_capture","when":"確定"}],"in":[{"rel":"triggers","from":"evt_authed","when":""}],"spec":{"in":[],"steps":[],"out":[]}},
@@ -443,7 +444,7 @@ function section(t,html){ return html?("<h3>"+t+"</h3>"+html):""; }
 function buildTerms(model){ var T={};
   for(var id in model){ var n=model[id];
     if(n.label && n.label.length>=2 && !T[n.label]) T[n.label]={id:id,kind:(TYPEJA[n.type]||"カード"),of:n.label};
-    if(n.states) n.states.split("|").forEach(function(s){ s=s.trim(); if(s&&!T[s]) T[s]={id:id,kind:"状態",of:n.label}; });
+    if(n.states) n.states.split("|").forEach(function(s){ s=s.split("//")[0].trim(); if(s&&!T[s]) T[s]={id:id,kind:"状態",of:n.label}; });
     if(n.fields) n.fields.split(";").forEach(function(f){ f=f.trim(); if(!f)return; var nm=f.replace(/:.*$/,"").replace(/\?$/,"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"項目",of:n.label}; });
     if(n.behaviors) n.behaviors.split(";").forEach(function(b){ var nm=(b.split(":")[0]||"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"述語",of:n.label}; });
     if(n.transitions) n.transitions.split(";").forEach(function(tr){ var nm=(tr.split(":")[0]||"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"遷移",of:n.label}; });
@@ -483,11 +484,16 @@ function dataFields(str){ if(!str) return "";
     if(cons) h+=" <span class=\"muted\">〔"+cons.replace(/_/g," ")+"〕</span>";
     if(sm) h+=" <span class=\"smell\">⚠ OR状態へ</span>";
     return h+"</div>"; }).join(""); }
-function stateChips(str){ if(!str) return ""; return str.split("|").map(function(s){return "<span class=\"stc\">"+s.trim()+"</span>";}).join(" "); }
+// 状態は「名 // ドメイン上の意味」を持てる（例: 受信 // チャージ要求を受け取り決済が未着手の初期状態）
+function parseStates(str){ if(!str) return []; return str.split("|").map(function(s){ var p=s.split("//");
+    var name=p[0].trim(); if(!name) return null; return {name:name, def:(p[1]||"").trim()}; }).filter(Boolean); }
+function stateChips(str){ return parseStates(str).map(function(s){
+    return "<div class=\"frow\"><span class=\"stc\">"+s.name+"</span>"+(s.def?" <span class=\"muted\">＝"+s.def+"</span>":" <span class=\"muted\">（意味未記述 — states の「// 意味」で定義）</span>")+"</div>"; }).join(""); }
 function transRows(str){ if(!str) return ""; return str.split(";").map(function(t){ t=t.trim(); if(!t) return "";
+    var dp=t.split("//"); var def=(dp[1]||"").trim(); t=dp[0].trim();
     var m=t.match(/^(.+?):(.+?)->(.+)$/); if(!m) return "<div class=\"frow\">"+t+"</div>";
     var outs=m[3].split("|").map(function(o){return infoChip(o,"orc");}).join(" ");
-    return "<div class=\"frow\"><b>"+m[1].trim()+"</b>: <span class=\"stc\">"+m[2].trim()+"</span> <span class=\"arrow\">→</span> "+outs+"</div>"; }).join(""); }
+    return "<div class=\"frow\"><b>"+m[1].trim()+"</b>: <span class=\"stc\">"+m[2].trim()+"</span> <span class=\"arrow\">→</span> "+outs+(def?"<div class=\"muted\" style=\"margin-left:1em\">＝"+def+"</div>":"")+"</div>"; }).join(""); }
 function behaviorHtml(n){ var h="";
   if(n.bin) h+=section("入力", n.bin.split(";").map(function(x){return infoChip(x,"inc");}).join(" "));
   if(n.decide) h+=section("判定", "<p>"+linkify(n.decide)+"</p>");
@@ -581,15 +587,17 @@ function termDef(n){
 function parseTransitions(t){
   if(!t) return [];
   return t.split(";").map(function(s){ s=s.trim(); if(!s) return null;
+    var dp=s.split("//"); var def=(dp[1]||"").trim(); s=dp[0].trim();
     var i=s.indexOf(":"); if(i<0) return null;
     var name=s.slice(0,i).trim(); var m=s.slice(i+1).split("->"); if(m.length<2) return null;
     var outs=m[1].split("|").map(function(x){return x.trim();}).filter(Boolean);
-    return {name:name, from:m[0].trim(), to:outs[0], alts:outs.slice(1)};
+    return {name:name, from:m[0].trim(), to:outs[0], alts:outs.slice(1), def:def};
   }).filter(Boolean);
 }
 function dictCards(m){ var h="";
   for(var id in m){ var n=m[id]; if(n.type!=="aggregate") continue;
-    var sts=(n.states||"").split("|").map(function(s){return s.trim();}).filter(Boolean);
+    var stobjs=parseStates(n.states); var sdef={}; stobjs.forEach(function(s){ sdef[s.name]=s.def; });
+    var sts=stobjs.map(function(s){return s.name;});
     var trs=parseTransitions(n.transitions);
     if(sts.length<2||!trs.length) continue;
     h+="<h3>『"+n.label+"』の動詞と状態 <span class=\"muted\">— 動詞は状態の区別を暗黙に生む。✗＝防いでいる事故</span></h3>";
@@ -598,6 +606,7 @@ function dictCards(m){ var h="";
       var stem=t.name.replace(/する$/,"");
       var prod=trs.filter(function(p){return p.to===t.from||p.alts.indexOf(t.from)>=0;});
       h+="<div class=\"dictcard verbcard\"><div class=\"dch\">"+t.name+"<span class=\"dctype\" style=\"background:var(--command)\">動詞</span></div>";
+      h+="<div class=\"meaning\">"+(t.def?("<b>ドメイン上の意味</b>＝"+t.def):("<b>ドメイン上の意味</b>＝<span class=\"muted\">未記述（この語は業務で何をすることか。transitions の「// 意味」で定義）</span>"))+"</div>";
       h+="<div class=\"sig\">"+t.name+" : <b>"+t.from+"</b>の"+n.label+" ─→ "+t.to+(t.alts.length?" ｜ "+t.alts.join(" ｜ "):"")+"</div>";
       h+="<div class=\"muted\">⚡ この語が「"+t.from+"である／でない」の区別を生む＝前提を満たした値だけを受け付ける</div>";
       h+="<table class=\"acc\">";
@@ -616,6 +625,7 @@ function dictCards(m){ var h="";
       var cant=trs.filter(function(t){return t.from!==s;});
       var born=trs.filter(function(t){return t.to===s||t.alts.indexOf(s)>=0;});
       h+="<div class=\"dictcard statecard\"><div class=\"dch\">"+s+"<span class=\"dctype\" style=\"background:var(--aggregate)\">状態</span></div>";
+      h+="<div class=\"meaning\">"+(sdef[s]?("<b>ドメイン上の意味</b>＝"+sdef[s]):("<b>ドメイン上の意味</b>＝<span class=\"muted\">未記述（この状態は業務上どういう局面か。states の「// 意味」で定義）</span>"))+"</div>";
       h+="<div class=\"rel\">できること: "+(can.length?can.map(function(t){return "<span class=\"orc\">✓ "+t.name+" → "+t.to+"</span>";}).join(" "):"<span class=\"muted\">（終端状態＝ここからの変化は無い）</span>")+"</div>";
       h+="<div class=\"rel\">できないこと: "+cant.map(function(t){return "<span class=\"smell\">✗ "+t.name+"</span>";}).join(" ")+"</div>";
       h+="<div class=\"muted\">この状態を生む動詞: "+(born.length?born.map(function(t){return t.name;}).join("・"):"（初期状態）")+"</div>";

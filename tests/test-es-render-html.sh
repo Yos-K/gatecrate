@@ -26,7 +26,7 @@ EOF
 cat > "$D/tobe.es" <<'EOF'
 N u actor 利用者
 N c command 文書を開く | in=id | out=開く|失敗 | decide="idが有効なら開く"
-N a aggregate タブ集約 | fields=id:数値 | states=閉|開 | transitions=開く:閉->開; 閉じる:開->閉 | invariant=id一意
+N a aggregate タブ集約 | fields=id:数値 | states=閉 // 文書を読めない待機の局面|開 // 文書を読める局面 | transitions=開く:閉->開 // 文書を読める状態にする; 閉じる:開->閉 // 読み終えて手放す | invariant=id一意
 N e event 文書が開かれた | fields=id:数値 | biz=value;revenue | measure=開封率・レイテンシ | capture=開封イベントでログ出力 | compute=開封率=count(開封)/count(要求)
 N ef event 開封に失敗した | fields=id:数値 | biz=degrade | measure=失敗率
 E u issues c
@@ -93,7 +93,9 @@ printf '%s' "$H3" | grep -q 'function dictCards' && pass "has dictCards projecto
 printf '%s' "$H3" | grep -q '受け付ける' && pass "renders acceptance panel (✓)" || fail "no acceptance panel"
 printf '%s' "$H3" | grep -q '二重' && pass "derives double-execution guard (✗ reason)" || fail "no ✗ reason"
 printf '%s' "$H3" | grep -q '前提「' && pass "shows capability supply chain" || fail "no supply chain"
-printf '%s' "$H3" | grep -qF '"transitions":"開く:閉->開; 閉じる:開->閉"' && pass "embeds fixture transitions" || fail "fixture transitions missing"
+printf '%s' "$H3" | grep -qF '文書を読める状態にする' && pass "embeds verb domain meaning" || fail "verb meaning missing"
+printf '%s' "$H3" | grep -qF '文書を読めない待機の局面' && pass "embeds state domain meaning" || fail "state meaning missing"
+printf '%s' "$H3" | grep -q 'ドメイン上の意味' && pass "renders meaning block" || fail "no meaning block"
 
 echo "property 2a3: AS-IS→TO-BE change mapping (becomes=) with cross-tab jump"
 printf '%s' "$H3" | grep -q '"becomes":"c | R4' && pass "embeds becomes mapping" || fail "no becomes in model"
