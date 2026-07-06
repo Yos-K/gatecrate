@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`legacy-domain-extraction` skill を progressive disclosure 化（情報最小化）**: 常時ロードの SKILL.md を
+  279→111行に削減（規律＝品質バー・ES意味規律ダイジェスト・フェーズ索引のみ）。手順詳細は
+  `reference/extraction.md`（Phase 1-5,7-9）と `reference/modeling.md`（Phase 6〜6.8）へ分離し、
+  各 Phase 着手時に読む方式に。「強いモデルほど全情報を渡さず必要時に探索」の実践。
+
 ### Added
 - **cron が仕事を生成する（実行の置き場をローカルPCからクラウドへ）**: 消費側テンプレ `templates/workflows/`
   を新設——`es-evidence-drift.yml`（日次: モデルとコードの乖離を検査し、壊れたら issue 起票・緑復帰で自動クローズ）と
