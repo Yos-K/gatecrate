@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **interaction-storming 完結性ゲート `check-interaction-storming.sh`（consumer実証→汎用化, #6）**: UI探索から
+  蒸留した状態表(PSV)を入力に、各画面状態に**完結・離脱・回復**の手段が available_commands 内に揃い evidence が
+  実在することを行番号つきで検査。「ダイアログに閉じる手段がない」等の“流れが完結しない”欠陥をUI自動操作の
+  前段で止める。**探索はゲートにせず、蒸留された状態表の整合性だけをゲートにする**（docs/exploratory-to-smoke.md）。
+
+### Added
 - **動詞・状態に「ドメイン上の意味」（辞書カードの semantics 強化）**: `transitions=名:from->to|fail // 意味`・
   `states=名 // 意味` の記法を追加（behaviors の `//定義` と同形）。「オーソリする＝決済手段に支払い枠を確保する
   （まだ金銭は動かない）」「受信＝チャージ要求を受け取り決済が未着手の局面」のように、名前だけでは分からない
