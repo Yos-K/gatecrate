@@ -1,0 +1,63 @@
+# gatecrate 自身のドメインモデル（docs/model/*.es）のドリフトを日次で検出する。
+#
+# なぜ: 「生きたモデル」はコード変更に追従して初めて生きる。ドリフト（evidence が指すコードの消失・
+# 文法/情報の劣化）は放置されるほど直しにくい。だから **cron が毎朝検査し、壊れたら issue を起票して
+# 仕事を生成する**（緑に戻れば自動クローズ）。人がPCの蓋を開けなくてもループが回る。
+# 消費側向けの同型テンプレ: templates/workflows/es-evidence-drift.yml
+name: es-drift
+
+on:
+  schedule:
+    - cron: '0 21 * * *'   # 毎日 06:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ES gates over docs/model
+        id: gates
+        run: |
+          out="$(mktemp)"; rc=0
+          for m in docs/model/*.es; do
+            sh core/scripts/es-lint.sh "$m" >>"$out" 2>&1 || rc=1
+            EVIDENCE_CODE_ROOT=. sh core/scripts/check-es-evidence.sh "$m" >>"$out" 2>&1 || rc=1
+            sh core/scripts/es-lint-info.sh "$m" >>"$out" 2>&1 || rc=1
+          done
+          for c in docs/model/*.cmap; do
+            [ -f "$c" ] && { sh core/scripts/es-cmap-lint.sh "$c" >>"$out" 2>&1 || rc=1; }
+          done
+          cat "$out" | tee -a "$GITHUB_STEP_SUMMARY"
+          {
+            echo 'report<<REPORT_EOF'
+            grep -E '\[ERROR\]|ERROR=[1-9]' "$out" | head -40 || true
+            echo 'REPORT_EOF'
+          } >> "$GITHUB_OUTPUT"
+          exit "$rc"
+
+      - name: Open/update drift issue on failure（cron が仕事を生成する）
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT: ${{ steps.gates.outputs.report }}
+        run: |
+          title="model drift: docs/model の ES ゲートが失敗"
+          intro="es-drift（日次）がモデルとコードの乖離を検出しました。evidence の指す実コードの確認、または .es の更新が必要です。"
+          body="$(printf '%s\n\n```\n%s\n```\n\n再実行: Actions → es-drift → Run workflow' "$intro" "$REPORT")"
+          n="$(gh issue list --state open --search 'in:title "model drift"' --json number --jq '.[0].number // empty')"
+          if [ -n "$n" ]; then gh issue comment "$n" --body "$body"; else gh issue create --title "$title" --body "$body"; fi
+
+      - name: Close drift issue when green again
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n="$(gh issue list --state open --search 'in:title "model drift"' --json number --jq '.[0].number // empty')"
+          if [ -n "$n" ]; then gh issue close "$n" -c "es-drift: 全ゲート green に復帰（自動クローズ）"; else echo "open drift issue なし"; fi

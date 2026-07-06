@@ -1,0 +1,30 @@
+# 消費側テンプレ: ハーネスROIの定期計測（週次・advisory）。発火履歴からROI判定し、ダッシュボードをSummaryに描く。
+# なぜ: ゲートは入れた後に育てる/剪定する（二階ループ）。定期計測が無いと「入れっぱなしで腐る」。
+# 導入: .github/workflows/ にコピー。ゲート群(scripts/)は vendoring 済みであること。
+name: harness-roi
+
+on:
+  schedule:
+    - cron: '30 0 * * 1'   # 毎週月曜 09:30 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect gate history (gh)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/roi
+          sh scripts/collect-gate-history.sh > build/roi/firing.tsv || true
+      - name: Dashboard + ROI verdict to job summary
+        run: |
+          DASHBOARD_DIR=scripts DASHBOARD_FIRING_TSV=build/roi/firing.tsv \
+            sh scripts/render-harness-dashboard.sh >> "$GITHUB_STEP_SUMMARY"
