@@ -156,6 +156,10 @@ inject→refute→verify を ALIVE まで統率・DEAD 継続はレビュー手�
 - **evidenceドリフト**: `EVIDENCE_CODE_ROOT` は .es の evidence が指すコード根。1つの .es が複数リポに
   またがるなら、その全リポを含む根（例: 親ディレクトリ）を指す。解決しなければ「ドリフト/捏造」として PR をブロック。
 - **HTML再生成**: CIで生成し artifact / Pages へ公開すれば、人は常に最新の図で学べる。
+- **日次ドリフトcron（推奨）**: [`templates/workflows/es-evidence-drift.yml`](../templates/workflows/) をコピーすると、
+  **cronが毎朝モデルとコードの乖離を検査し、壊れたら issue を起票**（緑復帰で自動クローズ）。実行の置き場を
+  ローカルPCからクラウドへ移し、人が起動しなくてもループが回る。gatecrate 自身も同型を dogfood 運用
+  （`.github/workflows/es-drift.yml`）。
 - WARN（情報完全性 R4-R7・cmap R4）は**TAKTで回す育成ループ**（P3）のワークリストとして残す。
 
 ## P3 TAKT育成ループ（情報完全化を自走で収束）

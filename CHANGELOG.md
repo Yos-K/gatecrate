@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **cron が仕事を生成する（実行の置き場をローカルPCからクラウドへ）**: 消費側テンプレ `templates/workflows/`
+  を新設——`es-evidence-drift.yml`（日次: モデルとコードの乖離を検査し、壊れたら issue 起票・緑復帰で自動クローズ）と
+  `harness-roi.yml`（週次: 発火履歴からROI判定＋ダッシュボードをSummaryへ。消費側=localmd-readerで実証済みの汎用化）。
+  gatecrate 自身も `.github/workflows/es-drift.yml` で同型を dogfood（docs/model の日次ドリフト検査）。
+
+### Added
 - **interaction-storming 完結性ゲート `check-interaction-storming.sh`（consumer実証→汎用化, #6）**: UI探索から
   蒸留した状態表(PSV)を入力に、各画面状態に**完結・離脱・回復**の手段が available_commands 内に揃い evidence が
   実在することを行番号つきで検査。「ダイアログに閉じる手段がない」等の“流れが完結しない”欠陥をUI自動操作の

@@ -190,6 +190,8 @@ EXTRA_MAIN_SOURCES=""
 
 ### Phase 5 — CI 配線
 
+**定期実行テンプレ**: `templates/workflows/`（es-evidence-drift=日次モデルドリフト検査→issue起票 / harness-roi=週次ROI計測）を `.github/workflows/` にコピーして配線する（cronが保守の仕事を生成する）。
+
 - **どのスタックでも（衛生ゲートだけ）**: `$KIT/core/workflows/ci.yml` をそのまま
   `.github/workflows/ci.yml` へ置く。PRタイトル/ファイル行数/シークレットの3ゲートで、
   Android でなくても動く（実 pull_request で緑を実証済み）。非Android 消費者はここで完了。
