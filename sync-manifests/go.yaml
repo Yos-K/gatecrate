@@ -27,6 +27,8 @@ sync_target:
     - core/scripts/check-es-evidence.sh
 
     - core/scripts/check-es-deliverables.sh
+
+    - core/scripts/check-interaction-storming.sh
     - core/scripts/check-jargon.sh
     - core/scripts/es-render-html.sh
     - core/scripts/es-render-cmap-html.sh

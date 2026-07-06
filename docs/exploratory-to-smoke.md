@@ -47,3 +47,20 @@ watered back down. Treat "the smoke only checks a label" as a defect the contrac
 
 Interim fragility (occurrence index) is acceptable **if it is visible and tracked**, not silent. Silent
 truncation of coverage ("we tap the first match and hope") reads as "covered" when it is not — surface it.
+
+## Interaction-storming completeness guard (`check-interaction-storming.sh`)
+
+**Positioning: exploration itself is NOT a gate — the distilled state table's consistency IS.** UI
+exploration finds "the user's flow cannot finish" defects (a dialog with no way to close, no way to
+re-choose a folder). Running exploration in CI is heavy and flaky; instead, distill findings into a
+machine-readable flow table and gate *that*:
+
+```
+# flow_id|state_id|event|available_commands|completion_command|escape_command|recovery_command|evidence
+recent|recent-dialog|Recent files shown|open,close,clear|open|close|clear|src/Main.java,docs/session.md
+```
+
+The gate checks each state has **completion / escape / recovery** commands, that they are listed in
+`available_commands`, and that `evidence` paths exist — reported with line numbers. Configure the table
+path via `INTERACTION_FLOWS` in `harness.config.sh` (or pass as the first argument). Proven in a consumer
+(localmd-reader) before generalization.
