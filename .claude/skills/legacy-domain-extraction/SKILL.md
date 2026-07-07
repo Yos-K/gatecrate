@@ -75,6 +75,8 @@ characterize  mutation+配線   概念モデル      Alloy                    st
   actor→command→aggregate→event の順序。**1図=1BCスライス（40ノード以下）**、ドメイン全体は `.cmap` で俯瞰。
 - **カード網羅**: AS-IS/TO-BE 全カードに `role=`、全コマンドに `.spec` か in/out/decide、AS-IS 各カードに
   `becomes=<TO-BE id> | 変化。なぜ: 理由`。動詞・状態には「// ドメイン上の意味」。**「未分析」カードを残さない**。
+- **存在論チェック（概念モデル先行の機械化）**: 集約/アクターに `is=kind|role|relator` を付け（相=states）、
+  「Xの一種か・Xを生成するルールか」「役割の担い手は誰か」「直交概念の混在は無いか」を R15/R16 で検査。
 - **源泉一本化**: ドメイン知識の源泉は `.es`/`.spec`/`.cmap`。用語集等の読み物は射影。手書きで二重管理しない。
 - **完成と収束**: 完成は感覚でなく **`check-es-deliverables` の exit 0**（自分でゲートを回し green まで直してから出す。
   TAKT `es-complete`/`es-converge` は外部ガードレール）。render 前に `es-lint-info` WARN→0。

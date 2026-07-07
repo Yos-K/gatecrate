@@ -31,6 +31,8 @@
 #             「from->to|fail」の fail 側（失敗の帰結）は状態でなくてよいので免除
 #   R13(warn) transitions の動詞に「// ドメイン上の意味」が無い（オーソリする＝業務で何をすることか）
 #   R14(warn) states の状態に「// ドメイン上の意味」が無い（「受信」だけでは意味が分からない）
+#   R15(warn) 存在論カテゴリ is=kind|role|phase|relator の整合（役割は role-of=担い手 を持つ）
+#   R16(warn/err) kind-of(is-a) の参照先未解決 / is-a 循環（分類階層は木/DAG）
 #
 # Usage: sh es-lint-info.sh <model.es>     ( ERROR があれば exit 1 )
 #   推奨: sh es-lint.sh m.es && sh es-lint-info.sh m.es
@@ -48,10 +50,10 @@ $1=="N"{
   line=$0; sub(/^N[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+/,"",line)
   lb=line; sub(/[[:space:]]*\|.*$/,"",lb); lbl[id]=trim(lb)
   delete KV; r=line
-  while(match(r,/\|[[:space:]]*[a-zA-Z]+=/)){ seg=substr(r,RSTART); r=substr(r,RSTART+RLENGTH)
+  while(match(r,/\|[[:space:]]*[a-zA-Z][a-zA-Z-]*=/)){ seg=substr(r,RSTART); r=substr(r,RSTART+RLENGTH)
     k=seg; sub(/^\|[[:space:]]*/,"",k); sub(/=.*$/,"",k); v=r
-    if(match(v,/\|[[:space:]]*[a-zA-Z]+=/)) v=substr(v,1,RSTART-1); KV[k]=trim(v) }
-  fld[id]=KV["fields"]; sts[id]=KV["states"]; bin[id]=KV["in"]; bout[id]=KV["out"]; dec[id]=KV["decide"]; bhv[id]=KV["behaviors"]; bcm[id]=KV["becomes"]; trn[id]=KV["transitions"]
+    if(match(v,/\|[[:space:]]*[a-zA-Z][a-zA-Z-]*=/)) v=substr(v,1,RSTART-1); KV[k]=trim(v) }
+  fld[id]=KV["fields"]; sts[id]=KV["states"]; bin[id]=KV["in"]; bout[id]=KV["out"]; dec[id]=KV["decide"]; bhv[id]=KV["behaviors"]; bcm[id]=KV["becomes"]; trn[id]=KV["transitions"]; onto[id]=KV["is"]; kof[id]=KV["kind-of"]; rof[id]=KV["role-of"]
   # known: 全fields基底名 + 全states + event fields
   if(fld[id]!=""){ c=split(fld[id],a,/;/); for(i=1;i<=c;i++){ nm=basename(a[i]); if(nm!=""){ known[nm]=1; fldlist[id,++fc[id]]=a[i] } } }
   if(sts[id]!=""){ c=split(sts[id],a,/\|/); for(i=1;i<=c;i++){ nm=a[i]; sub(/\/\/.*$/,"",nm); nm=trim(nm); if(nm!="") known[nm]=1 } }
@@ -100,6 +102,23 @@ END{
     if(sts[id]!=""){ c=split(sts[id],a,/\|/); for(j=1;j<=c;j++){ it=trim(a[j]); if(it!="" && it !~ /\/\//){ warn[++nw]="R14 状態の意味未定義: " id " の \"" it "\" ← 「// 意味」で業務上どういう局面か定義（例: 受信 // 要求を受け取り決済が未着手）" } } }
     # R8: AS-IS→TO-BE 変化(becomes=)は「なぜ」を必ず含む（変化の理由＝因果の明示）
     if(bcm[id]!="" && index(bcm[id],"なぜ")==0) warn[++nw]="R8 理由なし: " id " の becomes= に「なぜ」が無い ← AS-IS→TO-BE変化の理由を「。なぜ: …」で記載"
+    # R15: 存在論カテゴリ(is=)の整合。役割(role)は担い手(role-of)を持つ／role-of があるなら is=role
+    if(onto[id]!="" && onto[id]!~/^(kind|role|phase|relator)$/) warn[++nw]="R15 カテゴリ不正: " id " の is=\"" onto[id] "\" ← kind(種)|role(役割)|phase(相)|relator(関係子)"
+    if(onto[id]=="role" && rof[id]=="") warn[++nw]="R15 担い手なし: " id " は is=role(役割) だが role-of=(担い手の種) が無い ← 役割は「何が」演じるかを明記(例: 顧客 role-of=人)"
+    if(rof[id]!="" && onto[id]!="" && onto[id]!="role") warn[++nw]="R15 矛盾: " id " に role-of= があるのに is=" onto[id] " ← role-of を持つのは役割(is=role)"
+  }
+  # R16: kind-of(is-a) の参照先がモデル内に存在し、循環しないこと
+  for(i=1;i<=n;i++){ lab2id[lbl[order[i]]]=order[i] }
+  for(i=1;i<=n;i++){ id=order[i]
+    if(kof[id]=="") continue
+    if(!(kof[id] in lab2id)){ warn[++nw]="R16 上位概念が未解決: " id " の kind-of=\"" kof[id] "\" がモデル内のどのノードのラベルとも一致しない"; continue }
+    # 循環検出（ラベル→idを辿る）
+    seen=""; cur=id
+    while(cur!="" && kof[cur]!="" && (kof[cur] in lab2id)){
+      nxt=lab2id[kof[cur]]
+      if(index(seen,"|" nxt "|")>0 || nxt==id){ err[++ne]="R16 is-a循環: " id " から kind-of を辿ると循環する ← 分類階層は木/DAG"; break }
+      seen=seen "|" cur "|"; cur=nxt
+    }
   }
   # R9: 1図(=1.es)のノードが多すぎる → 1BCスライスに分割（毛玉化＝可読限界の防止）
   if(n>40) warn[++nw]="R9 図が過大: ノード " n " 個(>40) ← 1図=1BCスライスへ分割。コンテキストマップ(.cmap)でBCを俯瞰し、各BCを別 .es に。100個級は可読限界を超え「毛玉」化する"

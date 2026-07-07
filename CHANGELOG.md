@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **オントロジー・ライト（存在論カテゴリの導入）**: `.es` に `is=kind|role|phase|relator`（種/役割/相/関係子）・
+  `kind-of=`（is-a。下位は上位の不変条件を引き継ぐ）・`role-of=`（役割の担い手）・`alias=`（別名）を追加。
+  `es-lint-info` に **R15**（役割に担い手が無い/カテゴリ矛盾）/**R16**（is-a の未解決warn・循環error）。
+  ビューアはカテゴリバッジ・上位概念/担い手/別名の表示・用語集に「分類(is-a)」節、alias はクロスリンクに合流。
+  「Xの一種か、Xを生成するルールか」「同名でも立場で別概念か」という概念モデル先行の判断を機械検査に。
+
 ### Changed
 - **`legacy-domain-extraction` skill を progressive disclosure 化（情報最小化）**: 常時ロードの SKILL.md を
   279→111行に削減（規律＝品質バー・ES意味規律ダイジェスト・フェーズ索引のみ）。手順詳細は

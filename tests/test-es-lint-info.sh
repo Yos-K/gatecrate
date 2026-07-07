@@ -144,5 +144,20 @@ printf 'N a aggregate 集約 | fields=x:c | states=受信 // 要求を受け未�
 run "$D/mean.es"
 printf '%s\n' "$OUT" | grep -qE 'R13|R14' && fail "R13/R14 false positive: $OUT" || pass "no R13/R14 when meaning present"
 
+echo "property 15/16: ontological category consistency (is=/role-of/kind-of)"
+printf 'N c actor 顧客 | is=role\n' > "$D/r15.es"
+run "$D/r15.es"
+printf '%s\n' "$OUT" | grep -q 'R15' && pass "R15 role without role-of" || fail "no R15: $OUT"
+printf 'N c actor 顧客 | is=role | role-of=人\n' > "$D/r15ok.es"
+run "$D/r15ok.es"
+printf '%s\n' "$OUT" | grep -q 'R15' && fail "R15 false positive: $OUT" || pass "no R15 when role-of present"
+printf 'N x aggregate 注文 | fields=a:c | invariant=y | kind-of=取引\n' > "$D/r16.es"
+run "$D/r16.es"
+printf '%s\n' "$OUT" | grep -q 'R16 上位概念が未解決' && pass "R16 unresolved kind-of" || fail "no R16: $OUT"
+printf 'N a aggregate 甲 | fields=x:c | invariant=i | kind-of=乙\nN b aggregate 乙 | fields=x:c | invariant=i | kind-of=甲\n' > "$D/r16c.es"
+run "$D/r16c.es"
+[ "$RC" -eq 1 ] && pass "is-a cycle -> ERROR(1)" || fail "cycle expected 1, got $RC: $OUT"
+printf '%s\n' "$OUT" | grep -q '循環' && pass "names the cycle" || fail "cycle not named: $OUT"
+
 echo "---- es-lint-info: PASS=$PASS FAIL=$FAIL ----"
 [ "$FAIL" -eq 0 ]
