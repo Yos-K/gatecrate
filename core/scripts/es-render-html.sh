@@ -76,16 +76,16 @@ nodes_json(){
     } close(SPEC) } }
   /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
   $1=="N"{ id=$2; t=$3; line=$0; sub(/^N[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+/,"",line)
-    lbl=line; sub(/[[:space:]]*\|.*$/,"",lbl); inv="";ev="";fl="";st="";tr="";bi="";bo="";de="";bh="";nt="";rl="";di="";bz="";ms="";cp="";cu="";bm=""; rest=line
-    while(match(rest,/\|[[:space:]]*[a-zA-Z]+=/)){ seg=substr(rest,RSTART); rest=substr(rest,RSTART+RLENGTH)
+    lbl=line; sub(/[[:space:]]*\|.*$/,"",lbl); inv="";ev="";fl="";st="";tr="";bi="";bo="";de="";bh="";nt="";rl="";di="";bz="";ms="";cp="";cu="";bm="";on="";ko="";ro="";al=""; rest=line
+    while(match(rest,/\|[[:space:]]*[a-zA-Z][a-zA-Z-]*=/)){ seg=substr(rest,RSTART); rest=substr(rest,RSTART+RLENGTH)
       key=seg; sub(/^\|[[:space:]]*/,"",key); sub(/=.*$/,"",key); val=rest
-      if(match(val,/\|[[:space:]]*[a-zA-Z]+=/)) val=substr(val,1,RSTART-1); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val)
-      if(key=="invariant") inv=val; else if(key=="evidence") ev=val; else if(key=="fields") fl=val; else if(key=="states") st=val; else if(key=="transitions") tr=val; else if(key=="in") bi=val; else if(key=="out") bo=val; else if(key=="decide") de=val; else if(key=="behaviors") bh=val; else if(key=="note") nt=val; else if(key=="role") rl=val; else if(key=="discuss") di=val; else if(key=="biz") bz=val; else if(key=="measure") ms=val; else if(key=="capture") cp=val; else if(key=="compute") cu=val; else if(key=="becomes") bm=val }
-    type[id]=t; label[id]=lbl; invv[id]=inv; evv[id]=ev; fldA[id]=fl; stsA[id]=st; trnA[id]=tr; binA[id]=bi; boutA[id]=bo; decA[id]=de; bhvA[id]=bh; ntA[id]=nt; rlA[id]=rl; diA[id]=di; bizA[id]=bz; msA[id]=ms; cpA[id]=cp; cuA[id]=cu; bmA[id]=bm; order[++n]=id; next }
+      if(match(val,/\|[[:space:]]*[a-zA-Z][a-zA-Z-]*=/)) val=substr(val,1,RSTART-1); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val)
+      if(key=="invariant") inv=val; else if(key=="evidence") ev=val; else if(key=="fields") fl=val; else if(key=="states") st=val; else if(key=="transitions") tr=val; else if(key=="in") bi=val; else if(key=="out") bo=val; else if(key=="decide") de=val; else if(key=="behaviors") bh=val; else if(key=="note") nt=val; else if(key=="role") rl=val; else if(key=="discuss") di=val; else if(key=="biz") bz=val; else if(key=="measure") ms=val; else if(key=="capture") cp=val; else if(key=="compute") cu=val; else if(key=="becomes") bm=val; else if(key=="is") on=val; else if(key=="kind-of") ko=val; else if(key=="role-of") ro=val; else if(key=="alias") al=val }
+    type[id]=t; label[id]=lbl; invv[id]=inv; evv[id]=ev; fldA[id]=fl; stsA[id]=st; trnA[id]=tr; binA[id]=bi; boutA[id]=bo; decA[id]=de; bhvA[id]=bh; ntA[id]=nt; rlA[id]=rl; diA[id]=di; bizA[id]=bz; msA[id]=ms; cpA[id]=cp; cuA[id]=cu; bmA[id]=bm; onA[id]=on; koA[id]=ko; roA[id]=ro; alA[id]=al; order[++n]=id; next }
   $1=="E"{ ef[++m]=$2; er[m]=$3; et[m]=$4; ew[m]=""; if(match($0,/\|[[:space:]]*when=/)){ g=substr($0,RSTART+RLENGTH); sub(/[[:space:]]*$/,"",g); ew[m]=g } next }
   END{ print "{"
     for(i=1;i<=n;i++){ id=order[i]
-      printf "  \"%s\":{\"type\":\"%s\",\"label\":\"%s\",\"invariant\":\"%s\",\"evidence\":\"%s\",\"fields\":\"%s\",\"states\":\"%s\",\"transitions\":\"%s\",\"bin\":\"%s\",\"bout\":\"%s\",\"decide\":\"%s\",\"behaviors\":\"%s\",\"note\":\"%s\",\"role\":\"%s\",\"discuss\":\"%s\",\"biz\":\"%s\",\"measure\":\"%s\",\"capture\":\"%s\",\"compute\":\"%s\",\"becomes\":\"%s\",\"out\":[", id, type[id], jesc(label[id]), jesc(invv[id]), jesc(evv[id]), jesc(fldA[id]), jesc(stsA[id]), jesc(trnA[id]), jesc(binA[id]), jesc(boutA[id]), jesc(decA[id]), jesc(bhvA[id]), jesc(ntA[id]), jesc(rlA[id]), jesc(diA[id]), jesc(bizA[id]), jesc(msA[id]), jesc(cpA[id]), jesc(cuA[id]), jesc(bmA[id])
+      printf "  \"%s\":{\"type\":\"%s\",\"label\":\"%s\",\"invariant\":\"%s\",\"evidence\":\"%s\",\"fields\":\"%s\",\"states\":\"%s\",\"transitions\":\"%s\",\"bin\":\"%s\",\"bout\":\"%s\",\"decide\":\"%s\",\"behaviors\":\"%s\",\"note\":\"%s\",\"role\":\"%s\",\"discuss\":\"%s\",\"biz\":\"%s\",\"measure\":\"%s\",\"capture\":\"%s\",\"compute\":\"%s\",\"becomes\":\"%s\",\"is\":\"%s\",\"kindof\":\"%s\",\"roleof\":\"%s\",\"alias\":\"%s\",\"out\":[", id, type[id], jesc(label[id]), jesc(invv[id]), jesc(evv[id]), jesc(fldA[id]), jesc(stsA[id]), jesc(trnA[id]), jesc(binA[id]), jesc(boutA[id]), jesc(decA[id]), jesc(bhvA[id]), jesc(ntA[id]), jesc(rlA[id]), jesc(diA[id]), jesc(bizA[id]), jesc(msA[id]), jesc(cpA[id]), jesc(cuA[id]), jesc(bmA[id]), jesc(onA[id]), jesc(koA[id]), jesc(roA[id]), jesc(alA[id])
       f=1; for(j=1;j<=m;j++){ if(ef[j]==id){ printf "%s{\"rel\":\"%s\",\"to\":\"%s\",\"when\":\"%s\"}",(f?"":","),er[j],et[j],jesc(ew[j]); f=0 } }
       printf "],\"in\":["
       f=1; for(j=1;j<=m;j++){ if(et[j]==id){ printf "%s{\"rel\":\"%s\",\"from\":\"%s\",\"when\":\"%s\"}",(f?"":","),er[j],ef[j],jesc(ew[j]); f=0 } }
@@ -119,7 +119,7 @@ cmap_nodes(){
   awk '
   function jesc(s){ gsub(/\\/,"",s); gsub(/"/,"\\\"",s); return s }
   function trim(s){ gsub(/^[[:space:]]+|[[:space:]]+$/,"",s); return s }
-  function kv(line,  r,seg,key,v){ r=line; delete KV; while(match(r,/\|[[:space:]]*[a-zA-Z]+=/)){ seg=substr(r,RSTART); r=substr(r,RSTART+RLENGTH); key=seg; sub(/^\|[[:space:]]*/,"",key); sub(/=.*$/,"",key); v=r; if(match(v,/\|[[:space:]]*[a-zA-Z]+=/)) v=substr(v,1,RSTART-1); KV[key]=trim(v) } }
+  function kv(line,  r,seg,key,v){ r=line; delete KV; while(match(r,/\|[[:space:]]*[a-zA-Z][a-zA-Z-]*=/)){ seg=substr(r,RSTART); r=substr(r,RSTART+RLENGTH); key=seg; sub(/^\|[[:space:]]*/,"",key); sub(/=.*$/,"",key); v=r; if(match(v,/\|[[:space:]]*[a-zA-Z][a-zA-Z-]*=/)) v=substr(v,1,RSTART-1); KV[key]=trim(v) } }
   /^[[:space:]]*#/||/^[[:space:]]*$/{next}
   $1=="BC"||$1=="EXT"{ id=$2; ty=($1=="BC")?"bc":"ext"; l=$0; sub(/^(BC|EXT)[[:space:]]+[^[:space:]]+[[:space:]]+/,"",l); lbl=l; sub(/[[:space:]]*\|.*$/,"",lbl); kv(l); type[id]=ty; label[id]=trim(lbl); summ[id]=KV["summary"]; repo[id]=KV["repos"]; disc[id]=KV["discuss"]; agg[id]=KV["aggregates"]; knd[id]=KV["kind"]; order[++n]=id; next }
   $1=="REL"{ ff=$2; sub(/\|.*$/,"",ff); tt=$4; sub(/\|.*$/,"",tt); ef[++m]=ff; er[m]=$3; et[m]=tt; kv($0); ek[m]=KV["key"]; ez[m]=KV["reason"]; next }
@@ -472,6 +472,7 @@ function buildTerms(model){ var T={};
     if(n.states) n.states.split("|").forEach(function(s){ s=s.split("//")[0].trim(); if(s&&!T[s]) T[s]={id:id,kind:"状態",of:n.label}; });
     if(n.fields) n.fields.split(";").forEach(function(f){ f=f.trim(); if(!f)return; var nm=f.replace(/:.*$/,"").replace(/\?$/,"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"項目",of:n.label}; });
     if(n.behaviors) n.behaviors.split(";").forEach(function(b){ var nm=(b.split(":")[0]||"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"述語",of:n.label}; });
+    if(n.alias) n.alias.split(",").forEach(function(a){ a=a.trim(); if(a&&!T[a]) T[a]={id:id,kind:"別名",of:n.label}; });
     if(n.transitions) n.transitions.split(";").forEach(function(tr){ var nm=(tr.split(":")[0]||"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"遷移",of:n.label}; });
   } return T; }
 var TERMS=buildTerms(MODELS.asis);
@@ -606,6 +607,15 @@ function termDef(n){
   if(n.discuss) return "論点: "+n.discuss;
   return "<span class=\"muted\">(定義未記入)</span>";
 }
+// ===== 存在論カテゴリ(UFO-lite): 種/役割/相/関係子 =====
+var ONTO={kind:"種(Kind)",role:"役割(Role)",phase:"相(Phase)",relator:"関係子(Relator)"};
+var ONTOTIP={kind:"それ自体で存在する種別（人・書籍）。同一性の基準を自分で持つ",role:"文脈の中で担う役割（顧客・依頼元）。担い手(role-of)が別に居る",phase:"状態的な局面（与信済 等）。states= が担うので通常このタグは不要",relator:"当事者を結びつける関係の実体（契約・注文・決済）"};
+function ontoBadge(n){ if(!n.is||!ONTO[n.is]) return ""; return " <span class=\"badge ontob\" title=\""+(ONTOTIP[n.is]||"")+"\">"+ONTO[n.is]+"</span>"; }
+function ontoLines(n){ var h="";
+  if(n.kindof) h+="<div class=\"rel\">上位概念（is-a）: "+linkify(n.kindof)+" の一種 <span class=\"muted\">— 上位の不変条件を引き継ぐはず</span></div>";
+  if(n.roleof) h+="<div class=\"rel\">担い手: "+n.roleof+" <span class=\"muted\">— この役割を演じる種(Kind)</span></div>";
+  if(n.alias) h+="<div class=\"rel\">別名: "+n.alias.split(",").map(function(a){return "<span class=\"orc\">"+a.trim()+"</span>";}).join(" ")+"</div>";
+  return h; }
 // ===== 辞書カード: 動詞が暗黙に生む状態区別を展開する（transitions= から機械導出）=====
 // 「決済する」という語の存在が「決済可能／不可能」の区別を生む。✓（できる）だけでなく
 // ✗（できない＝防いでいる事故）まで明示し、前提状態を誰が生むか（能力の供給網）も描く。
@@ -660,9 +670,18 @@ function dictCards(m){ var h="";
   }
   return h;
 }
+// is-a 分類（kind-of= から導出）: 上位概念ごとに下位をまとめる
+function taxonomy(m){ var kids={}, has=false;
+  for(var id in m){ var n=m[id]; if(!n.kindof) continue; has=true; (kids[n.kindof]=kids[n.kindof]||[]).push(id); }
+  if(!has) return "";
+  var h="<h3>分類（is-a）<span class=\"muted\"> — 「Xの一種」。下位は上位の不変条件を引き継ぐはず</span></h3>";
+  for(var parent in kids){ h+="<div class=\"frow\"><b>"+linkify(parent)+"</b> ← "+kids[parent].map(function(c){return gchip(m,c);}).join(" ")+"</div>"; }
+  h+="<p class=\"muted\">カテゴリ凡例: 種(Kind)=それ自体で存在／役割(Role)=文脈で担う(担い手が別に居る)／相(Phase)=状態的局面(states=が担当)／関係子(Relator)=当事者を結ぶ関係の実体(契約・注文)。</p>";
+  return h; }
 function buildGlossary(){
   var m=MODELS.tobe||MODELS.asis||{}, h="";
   h+="<h2>用語集（ユビキタス言語）</h2><p class=\"muted\">.es から決定論射影（手書きしない＝モデル更新で常に最新）。用語をクリックすると図の定義元へ移動。種別ごとにグルーピング。</p>";
+  h+=taxonomy(m);
   h+=dictCards(m);
   var order=["aggregate","command","event","errorevent","policy","readmodel","actor","external","hotspot"], groups={};
   for(var id in m){ var n=m[id]; (groups[n.type]=groups[n.type]||[]).push(id); }
@@ -679,7 +698,8 @@ function buildGlossary(){
 }
 
 function esNode(id){ var n=NODES[id]; if(!n) return; var h="";
-  h+="<h2>"+n.label+"<span class=\"loc\">◀ 図で強調中</span></h2><span class=\"badge\" title=\""+(ROLE[n.type]||"")+"\" style=\"background:var(--"+n.type+");color:"+fg(n.type)+"\">"+(TYPEJA[n.type]||n.type)+"</span>";
+  h+="<h2>"+n.label+"<span class=\"loc\">◀ 図で強調中</span></h2><span class=\"badge\" title=\""+(ROLE[n.type]||"")+"\" style=\"background:var(--"+n.type+");color:"+fg(n.type)+"\">"+(TYPEJA[n.type]||n.type)+"</span>"+ontoBadge(n);
+  h+=ontoLines(n);
   h+=section("このカードの役割", n.role?("<p>"+linkify(n.role)+"</p>"):"<p class=\"muted\">（このカード固有の役割は未記述。.es に role= を追記）</p>");
   h+=changeBlock(id);
   if(n.discuss) h+=section("論点（何を議論・決めるか）", "<div style=\"border-left:3px solid #e8590c;padding:4px 10px;background:#fff4e6\">"+linkify(n.discuss)+"</div>");

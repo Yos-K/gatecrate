@@ -24,9 +24,9 @@ E a emits e
 E h marks a
 EOF
 cat > "$D/tobe.es" <<'EOF'
-N u actor 利用者
+N u actor 利用者 | is=role | role-of=人
 N c command 文書を開く | in=id | out=開く|失敗 | decide="idが有効なら開く"
-N a aggregate タブ集約 | fields=id:数値 | states=閉 // 文書を読めない待機の局面|開 // 文書を読める局面 | transitions=開く:閉->開 // 文書を読める状態にする; 閉じる:開->閉 // 読み終えて手放す | invariant=id一意
+N a aggregate タブ集約 | is=relator | alias=タブ | kind-of=文書ビュー | fields=id:数値 | states=閉 // 文書を読めない待機の局面|開 // 文書を読める局面 | transitions=開く:閉->開 // 文書を読める状態にする; 閉じる:開->閉 // 読み終えて手放す | invariant=id一意
 N e event 文書が開かれた | fields=id:数値 | biz=value;revenue | measure=開封率・レイテンシ | capture=開封イベントでログ出力 | compute=開封率=count(開封)/count(要求)
 N ef event 開封に失敗した | fields=id:数値 | biz=degrade | measure=失敗率
 E u issues c
@@ -132,6 +132,13 @@ printf '%s' "$H5" | grep -q '<table>' && pass "renders md table" || fail "no md 
 T="$(printf '%s' "$H5" | awk '/id="view_analysis"/{f=1} f&&/var MODELS/{exit} f' | grep -c '<table>')"
 TC="$(printf '%s' "$H5" | awk '/id="view_analysis"/{f=1} f&&/var MODELS/{exit} f' | grep -c '</table>')"
 [ "$T" = "$TC" ] && pass "md tables are balanced ($T)" || fail "table tags unbalanced: $T vs $TC"
+
+echo "property 2a5: ontology-lite — is=/kind-of/alias projected (badge, taxonomy, terms)"
+printf '%s' "$H3" | grep -q 'ontoBadge' && pass "has ontology badge fn" || fail "no ontoBadge"
+printf '%s' "$H3" | grep -q '関係子(Relator)' && pass "has category map" || fail "no ONTO map"
+printf '%s' "$H3" | grep -q 'function taxonomy' && pass "has is-a taxonomy projector" || fail "no taxonomy"
+printf '%s' "$H3" | grep -qF '"kindof":"文書ビュー"' && pass "embeds kind-of" || fail "kind-of missing"
+printf '%s' "$H3" | grep -qF '"alias":"タブ"' && pass "embeds alias" || fail "alias missing"
 
 echo "property 3: generated plain JS is syntactically valid (node があればチェック)"
 if command -v node >/dev/null 2>&1; then
