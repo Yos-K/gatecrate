@@ -8,21 +8,21 @@ run's Summary page; the README badge shows pass/fail. How it works: [`docs/harne
 
 ## 🛡️ Harness dashboard
 
-**34 gates** · ✅ all classified · no DEAD gate
+**35 gates** · ✅ all classified · no DEAD gate
 
 | metric | count |
 |---|---:|
-| 🛡️ prevention | 26 |
+| 🛡️ prevention | 27 |
 | 🎯 detection | 2 |
 | 📊 advisory | 6 |
 | ⚠️ untyped | 0 |
-| ✅ ALIVE / ❌ DEAD / — not-probed | 11 / 0 / 23 |
+| ✅ ALIVE / ❌ DEAD / — not-probed | 11 / 0 / 24 |
 | 🔧 tooling (not-a-gate, excluded) | 17 |
 
 ```mermaid
 pie showData
     title Gate types
-    "prevention" : 26
+    "prevention" : 27
     "detection" : 2
     "advisory" : 6
 ```
@@ -31,15 +31,15 @@ pie showData
 pie showData
     title Prevention-gate liveness
     "ALIVE" : 11
-    "not-probed" : 23
+    "not-probed" : 24
 ```
 
 ```mermaid
 xychart-beta
     title "Total gates over time"
-    x-axis ["06-20", "07-02"]
-    y-axis "gates" 0 --> 36
-    line [18, 34]
+    x-axis ["06-20", "07-02", "07-18"]
+    y-axis "gates" 0 --> 37
+    line [18, 34, 35]
 ```
 
 | Gate | Type | Liveness | ROI verdict | Next action |
@@ -57,6 +57,7 @@ xychart-beta
 | `check-gate-classified.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
 | `check-gate-tests.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
 | `check-hard-constraints.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
+| `check-interaction-storming.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
 | `check-jargon.sh` | prevention | — | — | add a synthetic reject injector, or mark escalation-only/not-probeable |
 | `check-kit-drift.sh` | advisory | — | — | confirm the signal is consumed (human); else downgrade/remove |
 | `check-merge-integrity.sh` | prevention | ✅ ALIVE | — | — |
