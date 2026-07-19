@@ -1,5 +1,12 @@
 # gatecrate hooks — spec-test の機械的裏打ち
 
+## adr-review-commit-msg.sh（commit-msg フック）
+
+`check-adr-review.sh --message` への薄い委譲。feat/fix コミットの `ADR-Review:` トレーラ欠落を
+**コミット時点**で知らせる（CI の範囲モードが最終防衛線・フックは早期フィードバック層）。
+検査ロジックはゲート本体に一本化し、フック側の重複実装ドリフトを避ける。
+インストール手順はファイル先頭コメント参照。
+
 cc-sdd 統合（`templates/kiro-steering/gatecrate-spec-test-loop.md`）は steering＝prompt 注入で、
 判断層。その**機械保証**を足すのがこの Stop hook。
 

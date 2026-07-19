@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **ポータブル ADR レビュー宣言ゲート `check-adr-review.sh`（consumer実証→汎用化, #25）**: feat/fix コミットに
+  `ADR-Review:` トレーラを**ちょうど1つ**要求し、参照 ADR の実在・随伴文書（対訳）・必須セクションを
+  **宣言コミット時点**で構造検査する（HEAD に後から足しても通らない）。`none (<理由>)` の許可は
+  `ADR_ALLOW_REASONED_NONE` で制御、裸の `none` は常に fail。解決不能な base は skip でなく明示 fail(exit 2)。
+  設定面（対象タイプ・ADR置き場・サフィックス・必須セクション）はすべて `harness.config.sh`。
+  `--message` モード＋ commit-msg フックテンプレ（`templates/hooks/adr-review-commit-msg.sh`）で
+  コミット時の早期フィードバック層も同梱（ロジックはゲート本体に一本化）。挙動テスト25件・手動変異4体全滅。
+  消費者プロトタイプ: localmd-reader PR #13。
+
+### Added
 - **オントロジー・ライト（存在論カテゴリの導入）**: `.es` に `is=kind|role|phase|relator`（種/役割/相/関係子）・
   `kind-of=`（is-a。下位は上位の不変条件を引き継ぐ）・`role-of=`（役割の担い手）・`alias=`（別名）を追加。
   `es-lint-info` に **R15**（役割に担い手が無い/カテゴリ矛盾）/**R16**（is-a の未解決warn・循環error）。
