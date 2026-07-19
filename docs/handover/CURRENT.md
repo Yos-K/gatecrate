@@ -6,7 +6,30 @@
 
 ## 現在の状態
 
-**最直近: JVM 限定機能の多言語化（2026-07-03・本ブランチ）**。ユーザー要望「JVMのみ機能が進んでいるので
+**最直近: ポータブル ADR レビュー宣言ゲート（2026-07-19・branch: feat/adr-review-gate・issue #25）**。
+localmd-reader からの consumer→kit フィードバック（プロトタイプ: localmd PR #13）を汎用コアへ還元:
+
+- **変更ファイル**: 新規=`core/scripts/check-adr-review.sh`（prevention・範囲モード＋`--message` モード・
+  設定面8変数は harness.config.sh）、`tests/test-check-adr-review.sh`（25アサーション・全棄却経路）、
+  `templates/hooks/adr-review-commit-msg.sh`（薄い委譲フック）。更新=check-gate-tests の MUST_TEST、
+  8 sync-manifests、core/docs/README.md、harness.config.sh.example、templates/hooks/README.md、CHANGELOG。
+- **判断の根拠**: ①検査は「宣言コミット時点」（HEAD 後付けを弾く・issue の受入条件）②裸 `none` は常に fail、
+  理由付き none は `ADR_ALLOW_REASONED_NONE` で制御③base 解決不能は skip でなく exit 2（黙って通さない）
+  ④フックはゲート本体 `--message` へ委譲一本化（重複実装ドリフト回避）⑤意味的遵守・不誠実な none の検出は
+  意図的に非対象（issue の Explicit limits どおり・ヒューリスティック解析を足さない）。
+- **検証済み**: 挙動テスト25件 green・手動変異4体全滅（複数トレーラ許容/HEAD検査化/裸none許容/タイプ
+  フィルタ死亡。うち1体は sed 不発の偽 SURVIVED を検出し awk で再注入して確認）・shellcheck/posix/300行/
+  gate-tests/gate-classified/manifest integrity 全 pass・全48スイート green。
+- **次のアクション**: (1) 本ブランチを PR（issue #25 参照付き） (2) **ペアリング規則**: 同週に localmd-reader で
+  自前 `check-adr-review.sh` を kit 版へ差し替える採用 PR → 実消費者 CI 緑が完了の定義（issue 受入条件の最終項）
+  (3) probe-gate-liveness への `adr-review` kind 追加は需要待ち（kit 側は負のフィクスチャが生存証明を代替）
+  (4) issue #27（interaction command traceability）は次スライス（localmd PR #18 がプロトタイプ）。
+- **注意事項**: `ADR_COMPANION_SUFFIXES` は `${VAR-default}`（`:-` でない）——空文字設定で随伴文書要求を
+  無効化できる仕様。既定セクション名は localmd プロトタイプと同一（EN/JA）。
+
+---
+
+**前回: JVM 限定機能の多言語化（2026-07-03・本ブランチ）**。ユーザー要望「JVMのみ機能が進んでいるので
 他言語対応を」に対し、洗い出した本丸2つを rust/typescript/python/go へ展開:
 
 - **変更ファイル**: `check-diff-coverage.sh`（+lcov/gocover パーサ・対称サフィックス突合。lcov 絶対パス SF と
