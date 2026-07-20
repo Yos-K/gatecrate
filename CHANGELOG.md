@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.12.0] - 2026-07-20
+
 ### Added
 - **interaction command traceability ガード `check-interaction-command-traceability.sh`（consumer実証→汎用化, #27）**:
   契約台帳（PSV: state_id|command|implementation|implementation_locator|test|test_locator）の各行について
