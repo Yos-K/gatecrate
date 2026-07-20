@@ -6,6 +6,13 @@
 
 ## 現在の状態
 
+**最直近: 公開前衛生監査（2026-07-20）**。全履歴と公開treeについてauthor email、既知のsecret形式、
+内部識別子を走査し問題なし。Android-JVM adapter配下の追跡済みGradle実行cache 7件を削除し、
+`**/.gradle/`のignoreと自己衛生テストを追加した。全46 behavior test、secret、POSIX、行数、構文ゲートは成功。
+ローカルにShellCheckがないため、ShellCheckはGitHub Actionsで確認する。
+
+---
+
 **最直近: interaction command traceability ガード（2026-07-20・branch: feat/interaction-command-traceability・
 issue #27）**。localmd PR #18 のプロトタイプを汎用コアへ還元:
 

@@ -72,6 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   「決済する」という語が「決済可能／不可能」の区別を暗黙に生む——を可視化する。
 
 ### Fixed
+- **公開treeの生成物除去**: Android-JVM adapter配下に誤って追跡されていたGradle実行cacheを削除し、
+  nested `.gradle` directoryのignoreと自己衛生テストを追加。
 - **ダッシュボードsnapshotへ Next action 列を反映（#1・#152のフォローアップ）**: 生成済み `docs/harness-status.md` が
   旧4列のままだったため、workflowと同一コマンドで再生成。`not-probed`/ROI未確定の各行に次の保守アクションが出る。
 - **OS メタデータの自己ハイジーンテスト（#2）**: `.DS_Store` 等が tracked に無いこと・`.gitignore` の予防エントリが

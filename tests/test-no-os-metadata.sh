@@ -16,5 +16,12 @@ bad="$(git -C "$ROOT" ls-files | grep -E '(^|/)(\.DS_Store|Thumbs\.db|desktop\.i
 echo "property 2: .gitignore keeps preventing .DS_Store"
 grep -qE '(^|/)\.DS_Store' "$ROOT/.gitignore" && pass ".gitignore has .DS_Store" || fail ".gitignore lacks .DS_Store entry"
 
+echo "property 3: no Gradle execution cache is tracked"
+bad="$(git -C "$ROOT" ls-files | grep -E '(^|/)\.gradle/' || true)"
+[ -z "$bad" ] && pass "no tracked Gradle cache" || fail "tracked Gradle cache: $bad"
+
+echo "property 4: .gitignore keeps preventing Gradle execution caches"
+grep -qE '^\*\*/\.gradle/$' "$ROOT/.gitignore" && pass ".gitignore has nested .gradle" || fail ".gitignore lacks nested .gradle entry"
+
 echo "---- no-os-metadata: PASS=$PASS FAIL=$FAIL ----"
 [ "$FAIL" -eq 0 ]

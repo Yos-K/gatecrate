@@ -3,6 +3,7 @@
 
 # 計測・ビルドの生成物（measure-*/es-coverage 等が build/quality に書く）
 build/
+**/.gradle/
 
 # IDE (Eclipse Buildship) local settings — contains machine-local paths
 **/.settings/
