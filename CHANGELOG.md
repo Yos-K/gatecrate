@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.11.0] - 2026-07-20
+
 ### Added
 - **ポータブル ADR レビュー宣言ゲート `check-adr-review.sh`（consumer実証→汎用化, #25）**: feat/fix コミットに
   `ADR-Review:` トレーラを**ちょうど1つ**要求し、参照 ADR の実在・随伴文書（対訳）・必須セクションを
