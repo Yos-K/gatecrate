@@ -14,6 +14,7 @@ sync_target:
     - core/scripts/check-rule-doc-currency.sh
     - core/scripts/check-kit-drift.sh
     - core/scripts/check-merge-integrity.sh
+    - core/scripts/check-adr-review.sh
     - core/scripts/check-hard-constraints.sh
     - core/scripts/check-mutation-escalation.sh
     - core/scripts/check-gate-tests.sh

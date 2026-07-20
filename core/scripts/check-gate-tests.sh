@@ -39,7 +39,8 @@ check-hard-constraints check-posix-portability check-mutation-escalation check-d
 check-rule-doc-currency check-merge-integrity check-release-version-name check-third-party-notices
 check-domain-model check-gate-tests check-gate-classified probe-gate-liveness es-lint
 check-diff-coverage check-no-received-approvals check-bc-domain check-evidence-resolves check-term-relations
-check-modularity-ratchet check-es-assertions check-model-refuted probe-semantic-liveness}"
+check-modularity-ratchet check-es-assertions check-model-refuted probe-semantic-liveness
+check-adr-review}"
 
 missing=""
 for g in $MUST_TEST; do

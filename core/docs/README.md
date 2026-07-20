@@ -9,6 +9,7 @@
 | check-conventional-title.sh | Conventional Commits タイトル検証 |
 | check-no-committed-secrets.sh | コミット済みシークレット検出 |
 | check-file-line-limit.sh | ファイル行数上限チェック（言語非依存・300行ルール） |
+| check-adr-review.sh | ADR レビュー宣言ゲート（feat/fix コミットに `ADR-Review:` トレーラを1つ強制・参照先の構造検査は宣言コミット時点） |
 | probe-gate-liveness.sh | 予防型ゲートの生存証明（合成違反を注入し ALIVE/DEAD を判定・ROADMAP P4 二階ループ） |
 | version-env.sh | VERSIONファイル読み込み・エクスポート |
 | version-show.sh | VERSION表示 |

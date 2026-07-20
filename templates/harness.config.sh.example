@@ -31,6 +31,18 @@
 # DOC_CURRENCY_BASE=origin/main                # 差分の基準 ref（既定: origin/main）
 # DOC_CURRENCY_SKIP=1                          # 片側だけの意図的編集を通す脱出口（理由を PR に記録）
 
+# --- check-adr-review.sh（ADR レビュー宣言ゲート・issue #25）---
+#   feat/fix コミットに ADR-Review トレーラを1つ要求し、参照 ADR の実在・必須セクションを
+#   「宣言コミット時点」で検査する。commit-msg フックは templates/hooks/adr-review-commit-msg.sh。
+# ADR_REVIEW_COMMIT_TYPES="feat fix"           # 宣言必須のコミットタイプ（空白区切り）
+# ADR_DIRECTORY=docs/adr                       # ADR の置き場
+# ADR_CANONICAL_SUFFIX=.md                     # 正典のサフィックス
+# ADR_COMPANION_SUFFIXES=".ja.md"              # 対訳等の随伴文書（空文字で随伴不要）
+# ADR_ALLOW_REASONED_NONE=true                 # "none (<理由>)" を許すか（false で ADR パス必須）
+# ADR_REQUIRED_SECTIONS='Decision|Alternatives Considered|Why This Decision|Why Alternatives Were Rejected|Reconsider When'
+# ADR_REQUIRED_COMPANION_SECTIONS='決定事項|検討した選択肢|選択理由|選択しなかった理由|決定を見直す契機'
+# ADR_REVIEW_BASE=origin/main                  # 比較元 ref（第1引数でも指定可）
+
 # --- check-diff-coverage.sh（差分カバレッジ ratchet・profile: brownfield）---
 #   テストの無い/希薄なレガシーの入口。レガシー本体は対象外で「このPRの変更行だけ」に被覆を要求する。
 #   消費側のテストで JaCoCo XML を生成してから本ゲートを回す（Kotlin/Android: kover or jacoco の XML）。
