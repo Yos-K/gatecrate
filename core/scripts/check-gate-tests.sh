@@ -40,7 +40,7 @@ check-rule-doc-currency check-merge-integrity check-release-version-name check-t
 check-domain-model check-gate-tests check-gate-classified probe-gate-liveness es-lint
 check-diff-coverage check-no-received-approvals check-bc-domain check-evidence-resolves check-term-relations
 check-modularity-ratchet check-es-assertions check-model-refuted probe-semantic-liveness
-check-adr-review}"
+check-adr-review check-interaction-command-traceability}"
 
 missing=""
 for g in $MUST_TEST; do

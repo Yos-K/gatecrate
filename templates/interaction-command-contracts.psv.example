@@ -1,0 +1,22 @@
+# interaction-command-contracts.psv — model→実装→挙動テストのトレーサビリティ契約台帳（雛形）
+#
+# check-interaction-command-traceability.sh が読む。1行 = 1契約:
+#   state_id|command|implementation|implementation_locator|test|test_locator
+#   - state_id|command は遷移表（interaction-model-transitions.psv）にモデル化されていること
+#   - implementation/test は repo 相対パス、locator はそのファイル内に実在する文字列
+#     （メソッド名・テスト名を推奨。行番号は使わない——ドリフトで即死するため）
+#   - 同一 state_id|command の重複は違反。"-" や空欄は違反
+#
+# 【増分採用の基準】（issue #27）全歴史コマンドの一括契約化は **しない**。一括要求は
+# 「トレーサビリティを満たすだけのプレースホルダテスト」を誘発し、挙動を守らない台帳になる。
+# 次のいずれかに該当する相互作用から1行ずつ足す:
+#   1. 高リスク（壊れるとユーザー操作が完結しない・データを失う）
+#   2. 新規追加した相互作用
+#   3. 変更した相互作用
+#   4. UI探索（exploration）で欠陥が見つかり修正した相互作用
+# 逆向きの検査もある: 実装コードに「interaction-command: <command>」マーカーを書くと、
+# 契約が無い場合にゲートが落ちる（実装だけ増えて台帳が取り残されるのを防ぐ）。
+#
+# 例（localmd-reader PR #18 の実契約より）:
+# state_id|command|implementation|implementation_locator|test|test_locator
+# library-tree-visible|scroll_menu|src/main/java/…/SwipeMenuScrollView.java|dispatchTouchEvent|src/testMedium/java/…/MenuPanelScrollabilityMediumTest.java|verticalSwipeReachesLowerMenuActions

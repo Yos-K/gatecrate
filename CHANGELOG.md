@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **interaction command traceability ガード `check-interaction-command-traceability.sh`（consumer実証→汎用化, #27）**:
+  契約台帳（PSV: state_id|command|implementation|implementation_locator|test|test_locator）の各行について
+  **state+command → モデル遷移 → 実装 path+locator → 挙動テスト path+locator** の連鎖を検査。切断5種
+  （遷移なし・evidence ファイル欠落・locator ドリフト・未契約の実装マーカー・契約重複）で PR を止める。
+  「ADR と構造テストが在るのにモデルにコマンドが無く、緑のモデルが実装を守らない」という consumer の
+  実欠陥（localmd-reader PR #18: scroll_menu）への回答。増分採用の基準（高リスク・新規・変更・探索由来
+  のみ契約化。一括要求はプレースホルダテストを誘発するため不可）を台帳雛形
+  `templates/interaction-command-contracts.psv.example` に成文化。設定面は INTERACTION_CONTRACTS/
+  TRANSITIONS/SOURCE_ROOT（harness.config.sh）。挙動テスト19件・手動変異4体全滅。
+
 ## [v0.11.0] - 2026-07-20
 
 ### Added
