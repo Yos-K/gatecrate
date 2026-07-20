@@ -32,6 +32,18 @@ enum CheckGate {
         #[arg(value_name = "BASE")]
         base: Option<String>,
     },
+    /// Every contracted interaction reaches implementation and a behavior test.
+    InteractionTraceability {
+        /// Contracts ledger (overrides INTERACTION_CONTRACTS).
+        #[arg(long, value_name = "PSV")]
+        contracts: Option<String>,
+        /// Interaction model transitions (overrides INTERACTION_TRANSITIONS).
+        #[arg(long, value_name = "PSV")]
+        transitions: Option<String>,
+        /// Directory scanned for implementation markers (overrides INTERACTION_SOURCE_ROOT).
+        #[arg(long, value_name = "DIR")]
+        source_root: Option<String>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -63,6 +75,30 @@ fn run_check(gate: CheckGate) -> ExitCode {
                 settings: &settings,
             };
             let gate = gatecrate_gates::adr_review::gate();
+            let verdict = gate.inspect(&evidence);
+            emit(report::report(gate.intent(), verdict))
+        }
+        CheckGate::InteractionTraceability {
+            contracts,
+            transitions,
+            source_root,
+        } => {
+            let mut settings = Settings::from_env();
+            for (key, value) in [
+                ("INTERACTION_CONTRACTS", contracts),
+                ("INTERACTION_TRANSITIONS", transitions),
+                ("INTERACTION_SOURCE_ROOT", source_root),
+            ] {
+                if let Some(value) = value {
+                    settings = settings.overriding(key, value);
+                }
+            }
+            let evidence = Evidence {
+                workspace: &workspace,
+                history: &history,
+                settings: &settings,
+            };
+            let gate = gatecrate_gates::interaction_traceability::gate();
             let verdict = gate.inspect(&evidence);
             emit(report::report(gate.intent(), verdict))
         }

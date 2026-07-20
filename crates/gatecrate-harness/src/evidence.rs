@@ -28,7 +28,8 @@ pub trait Workspace {
     fn root(&self) -> &Path;
     fn exists(&self, path: &str) -> bool;
     fn read(&self, path: &str) -> Lookup<String>;
-    /// 指定ディレクトリ配下のファイルを決定論順（辞書順）で列挙する。
+    /// 指定ディレクトリ配下のファイルを、リポジトリ相対パスの辞書順で列挙する。
+    /// 相対に揃えるのは、報告に出る位置が実行環境で変わらないようにするため。
     fn walk(&self, dir: &str) -> Lookup<Vec<PathBuf>>;
 }
 

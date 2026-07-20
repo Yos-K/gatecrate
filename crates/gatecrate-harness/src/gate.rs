@@ -40,11 +40,22 @@ where
     }
 }
 
-/// 完成したゲート＝意図＋母集団＋基準群。
+/// 集合としての整合（第2層b の対）。重複の禁止や「実装側にあって台帳に無い」の逆引きなど、
+/// 1対象を見ても判定できず、母集団全体を見て初めて言える性質を担う。
+pub trait Coherence<S: Subject> {
+    fn judge_together(
+        &self,
+        subjects: &[S],
+        evidence: &Evidence,
+    ) -> Result<Vec<Finding>, Unverifiable>;
+}
+
+/// 完成したゲート＝意図＋母集団＋基準群（各対象／集合全体）。
 pub struct Gate<P: Population> {
     intent: Intent,
     population: P,
     criteria: Vec<Box<dyn Criterion<P::Item>>>,
+    coherences: Vec<Box<dyn Coherence<P::Item>>>,
 }
 
 impl<P: Population> Gate<P> {
@@ -53,11 +64,19 @@ impl<P: Population> Gate<P> {
             intent,
             population,
             criteria: Vec::new(),
+            coherences: Vec::new(),
         }
     }
 
+    /// 各対象が満たすべき条件を足す。
     pub fn checking(mut self, criterion: impl Criterion<P::Item> + 'static) -> Self {
         self.criteria.push(Box::new(criterion));
+        self
+    }
+
+    /// 母集団全体が満たすべき条件を足す。
+    pub fn ensuring(mut self, coherence: impl Coherence<P::Item> + 'static) -> Self {
+        self.coherences.push(Box::new(coherence));
         self
     }
 
@@ -87,6 +106,12 @@ impl<P: Population> Gate<P> {
                     Ok(mut f) => findings.append(&mut f),
                     Err(u) => return Verdict::Unverifiable(u),
                 }
+            }
+        }
+        for coherence in &self.coherences {
+            match coherence.judge_together(&subjects, evidence) {
+                Ok(mut f) => findings.append(&mut f),
+                Err(u) => return Verdict::Unverifiable(u),
             }
         }
 

@@ -49,9 +49,12 @@ impl Workspace for GitWorkspace {
 
     fn walk(&self, dir: &str) -> Lookup<Vec<PathBuf>> {
         let base = self.root.join(dir);
-        let mut found = Vec::new();
-        collect(&base, &mut found)
-            .map_err(|e| LookupError::NotFound(format!("{dir}: {e}")))?;
+        let mut absolute = Vec::new();
+        collect(&base, &mut absolute).map_err(|e| LookupError::NotFound(format!("{dir}: {e}")))?;
+        let mut found: Vec<PathBuf> = absolute
+            .iter()
+            .filter_map(|p| p.strip_prefix(&self.root).ok().map(Path::to_path_buf))
+            .collect();
         found.sort();
         Ok(found)
     }
