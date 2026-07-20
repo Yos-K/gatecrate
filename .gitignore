@@ -7,3 +7,4 @@ build/
 
 # IDE (Eclipse Buildship) local settings — contains machine-local paths
 **/.settings/
+/target
