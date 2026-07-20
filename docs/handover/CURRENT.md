@@ -6,7 +6,28 @@
 
 ## 現在の状態
 
-**最直近: ポータブル ADR レビュー宣言ゲート（2026-07-19・branch: feat/adr-review-gate・issue #25）**。
+**最直近: interaction command traceability ガード（2026-07-20・branch: feat/interaction-command-traceability・
+issue #27）**。localmd PR #18 のプロトタイプを汎用コアへ還元:
+
+- **変更ファイル**: 新規=`core/scripts/check-interaction-command-traceability.sh`（prevention・
+  契約台帳の連鎖検査5種＋逆向きマーカー検査）、`tests/test-…-traceability.sh`（19アサーション）、
+  `templates/interaction-command-contracts.psv.example`（増分採用基準を成文化した台帳雛形）。
+  更新=MUST_TEST、8 manifests、core/docs/README、harness.config.sh.example（INTERACTION_FLOWS の
+  未記載も同時解消）、CHANGELOG。
+- **判断の根拠**: ①パス解決は cwd→repo root の2段（テスト=絶対/tmp・消費者=repo相対の両立）
+  ②spec/source-root 欠落は exit 2（黙って skip しない・interaction-storming と同型）③locator は
+  文字列包含（行番号はドリフト即死のため契約に使わせない・雛形に明記）④増分採用（一括契約化の
+  プレースホルダテスト誘発を雛形コメントで禁止）。
+- **検証済み**: 19件 green・手動変異4体全滅（遷移検査無効/locatorドリフト無効/重複無効/マーカー無効。
+  今回は sed 不発検知付き）。
+- **次のアクション**: (1) 本ブランチ PR（Refs #27） (2) localmd 採用は**リポ再構築の完了待ち**
+  （#25 の採用 PR やり直しと同時に、この gate の kit 版差し替えも実施するのが効率的） (3) #25 は
+  再オープン中（kit 側完了・consumer 着地のみ残）。ローカル branch ci/adopt-kit-adr-review-gate
+  (9cdede0) に採用コミット保全済み・新 main への rebase 要。
+
+---
+
+**前回: ポータブル ADR レビュー宣言ゲート（2026-07-19・branch: feat/adr-review-gate・issue #25）**。
 localmd-reader からの consumer→kit フィードバック（プロトタイプ: localmd PR #13）を汎用コアへ還元:
 
 - **変更ファイル**: 新規=`core/scripts/check-adr-review.sh`（prevention・範囲モード＋`--message` モード・

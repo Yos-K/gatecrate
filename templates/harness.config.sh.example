@@ -31,6 +31,16 @@
 # DOC_CURRENCY_BASE=origin/main                # 差分の基準 ref（既定: origin/main）
 # DOC_CURRENCY_SKIP=1                          # 片側だけの意図的編集を通す脱出口（理由を PR に記録）
 
+# --- check-interaction-storming.sh（interaction 完結性ゲート）---
+# INTERACTION_FLOWS=docs/harness/interaction-storming-flows.psv  # flow表（未指定なら exit 2）
+
+# --- check-interaction-command-traceability.sh（model→実装→挙動テストの連鎖ガード・issue #27）---
+#   契約台帳の各行 state+command について「モデル遷移あり・実装 path+locator 生存・挙動テスト
+#   path+locator 生存」を検査。増分採用の基準は templates/interaction-command-contracts.psv.example。
+# INTERACTION_CONTRACTS=docs/harness/interaction-command-contracts.psv   # 契約台帳
+# INTERACTION_TRANSITIONS=docs/harness/interaction-model-transitions.psv # 遷移表
+# INTERACTION_SOURCE_ROOT=src                  # 実装マーカー(interaction-command: X)の走査ルート
+
 # --- check-adr-review.sh（ADR レビュー宣言ゲート・issue #25）---
 #   feat/fix コミットに ADR-Review トレーラを1つ要求し、参照 ADR の実在・必須セクションを
 #   「宣言コミット時点」で検査する。commit-msg フックは templates/hooks/adr-review-commit-msg.sh。
