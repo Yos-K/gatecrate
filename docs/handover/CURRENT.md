@@ -20,10 +20,13 @@ issue #27）**。localmd PR #18 のプロトタイプを汎用コアへ還元:
   プレースホルダテスト誘発を雛形コメントで禁止）。
 - **検証済み**: 19件 green・手動変異4体全滅（遷移検査無効/locatorドリフト無効/重複無効/マーカー無効。
   今回は sed 不発検知付き）。
-- **次のアクション**: (1) 本ブランチ PR（Refs #27） (2) localmd 採用は**リポ再構築の完了待ち**
-  （#25 の採用 PR やり直しと同時に、この gate の kit 版差し替えも実施するのが効率的） (3) #25 は
-  再オープン中（kit 側完了・consumer 着地のみ残）。ローカル branch ci/adopt-kit-adr-review-gate
-  (9cdede0) に採用コミット保全済み・新 main への rebase 要。
+- **完了状態（2026-07-20 更新）**: PR #30 マージ済み・**v0.12.0 リリース済み**（#25 の v0.11.0 と併せ
+  kit 側は両 issue とも完了）。**consumer（localmd-reader）側の採用は別エージェントに引き継ぎ**——
+  採用手順は issue #25 / #27 の "Adoption guide for the consumer-side agent" コメントに記載
+  （pin=v0.12.0・byte-identical vendoring・#27 は INTERACTION_SOURCE_ROOT=src/main/java 必須・
+  #25 は check-kit-drift 蘇生込み）。ローカル branch ci/adopt-kit-adr-review-gate (9cdede0) に
+  再構築前の採用コミットが保全されており cherry-pick 可能。issue クローズ条件は
+  「consumer の required CI が main で green」。
 
 ---
 
