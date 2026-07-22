@@ -1,0 +1,49 @@
+  <div id="help" class="hidden" onclick="if(event.target===this)toggleHelp(0)">
+    <div class="help-card">
+      <button class="help-x" onclick="toggleHelp(0)">✕ 閉じる</button>
+      <h2>このページの見方</h2>
+      <p class="muted">コードから起こした「ドメインモデル（業務の仕組み）」を図で読むページです。上部のタブで、<b>現状(AS-IS)</b>・
+      <b>あるべき姿(TO-BE)</b>・<b>境界(コンテキストマップ)</b>・<b>用語集</b>・<b>ビジネス分析</b>・<b>分析レポート</b>を切り替えます。
+      図のカードを<b>クリック</b>すると右側に詳細が出ます。</p>
+
+      <h3>1. イベントストーミングとは（AS-IS / TO-BE タブ）</h3>
+      <p>業務を「<b>誰が</b>→<b>何を要求し</b>→<b>何の一貫性が保たれ</b>→<b>何が起きたか</b>」という出来事の流れで表す手法です。
+      左から右へ時系列で読みます。色と形で種類が分かります：</p>
+      <div class="legend">
+        <span class="lg" style="background:#FFE8CC;border-color:#D9480F">アクター</span>＝業務の起点（誰が要求するか）
+        <span class="lg" style="background:#4DABF7;border-color:#1971C2">コマンド</span>＝「〜せよ」という要求・意図
+        <span class="lg" style="background:#FFE066;border-color:#F08C00">集約</span>＝一貫性を守る境界（状態と不変条件を持つ実体）
+        <span class="lg" style="background:#FFA94D;border-color:#E8590C">イベント</span>＝起きた事実（過去形）
+        <span class="lg" style="background:#DA77F2;border-color:#9C36B5;color:#fff">ポリシー</span>＝「〜なら〜する」条件判定
+        <span class="lg" style="background:#B2F2BB;border-color:#2F9E44">リードモデル</span>＝参照用ビュー
+        <span class="lg" style="background:#FFD8A8;border-color:#D9480F">外部システム</span>＝外部の権威
+        <span class="lg" style="background:#FF6B6B;border-color:#C92A2A;color:#fff">ホットスポット</span>＝要オーナー判断の論点
+      </div>
+      <p class="muted">流れ: <b>アクター →（コマンド）→ 集約 →（イベント）→ …</b>。ポリシーからコマンドへ伸びる矢印のラベルは「どの条件のときに繋がるか」。
+      <b>AS-IS</b>＝実コードの流れ（カードに実装評価あり）／<b>TO-BE</b>＝あるべき設計。AS-ISのカードには「🔄 TO-BEでの変化」が出ます。</p>
+
+      <h3>2. コンテキストマップとは（コンテキストマップ タブ）</h3>
+      <p>システムを、<b>独立した言葉とモデルを持つ領域＝境界づけられたコンテキスト(BC)</b>に分け、その<b>関係</b>を描いた地図です。
+      四角=自社BC、角丸/灰=外部システム。矢印のラベルが関係の種類です：</p>
+      <div class="legend">
+        <span class="lg2">CS（顧客-供給）</span>＝下流が上流に依存（供給を受ける）
+        <span class="lg2">Conformist（順応）</span>＝上流の型にそのまま従う
+        <span class="lg2">ACL（腐敗防止層）</span>＝外部の型を自分の型へ変換して隔離
+        <span class="lg2">SharedKernel</span>＝モデルを共有
+        <span class="lg2">PL（公表言語）</span>＝公開フォーマットで連携
+      </div>
+      <p class="muted">矢印の「連結キー」は2つのBCを突き合わせる識別子。BCをクリックすると、その中の<b>コマンド→集約→イベントの流れ</b>と上流/下流関係が見えます。</p>
+
+      <h3>3. 各タブ</h3>
+      <ul>
+        <li><b>AS-IS / TO-BE</b>: 現状のコードの流れ／あるべき設計（クリックで役割・不変条件・根拠・変化）</li>
+        <li><b>コンテキストマップ</b>: BCの境界と関係（上記2）</li>
+        <li><b>用語集</b>: モデルから自動射影したユビキタス言語（種別別の用語と定義）</li>
+        <li><b>ビジネス分析</b>: イベントの収益/価値/UX分類・計測設計・因果ループ（強化R/バランスB）・施策</li>
+        <li><b>分析レポート</b>: リファクタリング計画・永続化設計などの設計文書</li>
+      </ul>
+
+      <h3>4. 操作</h3>
+      <p class="muted"><b>Ctrl+ホイール / ピンチ</b>=拡大縮小 ・ <b>ホイール / スワイプ / ドラッグ</b>=移動 ・ <b>クリック</b>=詳細表示 ・ <b>用語の下線</b>=定義元へジャンプ</p>
+    </div>
+  </div>

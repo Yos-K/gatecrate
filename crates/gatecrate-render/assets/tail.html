@@ -1,0 +1,385 @@
+var TYPEJA={"actor":"アクター","command":"コマンド","aggregate":"集約","event":"イベント","errorevent":"エラーイベント","policy":"ポリシー","readmodel":"リードモデル","external":"外部システム","hotspot":"ホットスポット(要確認)","bc":"境界づけBC","ext":"外部システム"};
+var RELT={CS:"Customer-Supplier(顧客-供給)",Conformist:"順応(Conformist)",ACL:"腐敗防止層(ACL)",SharedKernel:"共有カーネル",PL:"公表言語(Published Language)"};
+var KINDJA={core:"コアドメイン（競争力の源泉・最も注力）",supporting:"支援サブドメイン（コアを支える固有業務）",generic:"汎用サブドメイン（既製・共通で代替可）"};
+function esModel(){ return MODELS.tobe||MODELS.asis||{}; }
+function findByLabel(model,label){ var id; for(id in model){ if(model[id].label===label) return id; } for(id in model){ if(model[id].label.indexOf(label)>=0||label.indexOf(model[id].label)>=0) return id; } return null; }
+function gotoEs(id){ setView(document.getElementById("view_tobe")?"tobe":"asis"); esNode(id); }
+// 別タブ(AS-IS↔TO-BE)のノードへジャンプ＋強調
+window.gotoCross=function(view,id){ if(!document.getElementById("view_"+view)) return; setView(view); var c=CENTERS["vp_"+view]; if(c) c(id); esNode(id); };
+// becomes= の解析: "id1,id2 | 説明" → {ids:[...],desc:"..."}
+function parseBecomes(v){ if(!v) return null; var i=v.indexOf("|"); var idspart=(i<0?v:v.slice(0,i)).trim(); var desc=(i<0?"":v.slice(i+1)).trim();
+  var ids=idspart?idspart.split(",").map(function(s){return s.trim();}).filter(Boolean):[]; return {ids:ids,desc:desc}; }
+// AS-IS→TO-BE 変化ブロック（AS-ISカードに表示）/ 逆引き（TO-BEカードに「AS-ISから」）
+function changeBlock(id){
+  if(ACTIVE==="asis"){ var n=NODES[id]; var b=parseBecomes(n&&n.becomes); if(!b) return "";
+    var tb=MODELS.tobe||{}; var chips=b.ids.map(function(t){ return "<span class=\"orc lk\" onclick=\"gotoCross('tobe','"+t+"')\">"+(tb[t]?tb[t].label:t)+"</span>"; }).join(" ");
+    return "<div class=\"chg\"><div class=\"chgh\">🔄 TO-BEでの変化</div>"+(chips?"<div class=\"rel\">→ "+chips+"</div>":"")+(b.desc?"<div class=\"muted\">"+linkify(b.desc)+"</div>":"")+"</div>"; }
+  if(ACTIVE==="tobe"){ var as=MODELS.asis||{}, froms=[];
+    for(var aid in as){ var b2=parseBecomes(as[aid].becomes); if(b2&&b2.ids.indexOf(id)>=0) froms.push(aid); }
+    if(!froms.length) return "";
+    var chips2=froms.map(function(a){ return "<span class=\"inc lk\" onclick=\"gotoCross('asis','"+a+"')\">"+as[a].label+"</span>"; }).join(" ");
+    return "<div class=\"chg\"><div class=\"chgh\">← AS-IS からの由来</div><div class=\"rel\">"+chips2+" がこのTO-BEに変化</div></div>"; }
+  return ""; }
+// BCが含むES流れ: 所属する集約ごとに コマンド→集約→イベント を描く（同じ集約名のまとまり＝そのBCの中身）
+function bcFlows(aggNames){ var em=esModel(), html="";
+  aggNames.split(";").forEach(function(nm){ nm=nm.trim(); if(!nm) return; var aid=findByLabel(em,nm);
+    if(!aid){ html+="<div class=\"frow\"><b>"+nm+"</b> <span class=\"muted\">（ESモデル未登録：この集約の.esは未作成）</span></div>"; return; }
+    var a=em[aid];
+    var cmds=(a.in||[]).filter(function(e){return e.rel==="handles";}).map(function(e){return "<span class=\"inc lk\" onclick=\"gotoEs('"+e.from+"')\">"+(em[e.from]?em[e.from].label:e.from)+"</span>";}).join("");
+    var evs=(a.out||[]).filter(function(e){return e.rel==="emits";}).map(function(e){return "<span class=\"orc lk\" onclick=\"gotoEs('"+e.to+"')\">"+(em[e.to]?em[e.to].label:e.to)+"</span>";}).join(" ");
+    html+="<div class=\"frow\">"+(cmds||"<span class=\"muted\">(コマンド無)</span>")+" <span class=\"arrow\">→</span> <span class=\"stc lk\" onclick=\"gotoEs('"+aid+"')\">"+a.label+"</span> <span class=\"arrow\">→</span> "+(evs||"<span class=\"muted\">(イベント無)</span>")+"</div>"; });
+  return html; }
+function cmapRel(e,isOut){ var other=isOut?e.to:e.from; var t=RELT[e.rel]||e.rel;
+  return "<div class=\"rel\">"+(isOut?("<b>ここ</b> → "+chip(other)):(chip(other)+" → <b>ここ</b>"))+" <span class=\"v\">"+t+"</span>"+(e.key?" <span class=\"orc\">連結:"+e.key+"</span>":"")+(e.reason?"<div class=\"muted\" style=\"margin-left:1em\">"+linkify(e.reason)+"</div>":"")+"</div>"; }
+var ACTIVE="asis"; var NODES=MODELS.asis;
+var VERB={issues:"発行",handles:"処理",emits:"発生",triggers:"起動",feeds:"供給",marks:"指摘"};
+var ROLE={
+  actor:"システムにコマンドを発行する人/外部主体。業務の起点。ここから「何をしたいか」が入る。",
+  command:"『〜せよ』という意図・要求。集約に渡され状態変更を試みる。命令は成功を保証しない（失敗もイベント）。評価軸: 入力検証はここか集約か／1コマンドは1集約だけを変える。",
+  aggregate:"不変条件を守る一貫性の境界。状態と振る舞いを持つ実体で、トランザクションは1集約に閉じる。実装: 不変条件はコンストラクタ/メソッドで強制(AlwaysValid)、状態はフラグでなくOR型で。",
+  event:"起きた事実（過去形）。他の文脈へ非同期に伝わり、後続の判断材料になる。伝える情報が薄いと後続が判定できない。",
+  errorevent:"失敗の事実。フローの終端、または補償(取消等)の起点になる。",
+  policy:"イベントに反応して次のコマンドを起こす業務ルール(when/if→then)。判断に使う言葉は behavior で定義せよ（未定義の述語はNG）。",
+  readmodel:"問い合わせ専用のビュー。イベントから投影され、判断の入力に使う。書き込みはしない(CQRSのQ側)。",
+  external:"境界の外のシステム。ACL(腐敗防止層)やConformistで接続し、相手のモデルを内部に漏らさない。",
+  hotspot:"未決定・要確認の論点。コードだけでは決められず、業務オーナーの判断待ち。",
+  bc:"境界づけられたコンテキスト。1つの一貫した用語体系(ユビキタス言語)が通用する範囲。中の集約・ポリシーはこの言語で書かれる。",
+  ext:"本群の外のシステム。境界の外なので、ACL(腐敗防止層)やConformistで接続し相手のモデルを内部に持ち込まない。"
+};
+function fg(t){ return (t==="policy"||t==="hotspot")?"#fff":"#000"; }
+function chip(id){ var n=NODES[id]; if(!n) return id; return "<span class=\"chip\" style=\"background:var(--"+n.type+");color:"+fg(n.type)+"\" onclick=\"esNode('"+id+"')\">"+n.label+"</span>"; }
+function outOf(id,rel){ var n=NODES[id],a=[]; if(n&&n.out) n.out.forEach(function(e){ if(!rel||e.rel===rel) a.push(e); }); return a; }
+function inOf(id,rel){ var n=NODES[id],a=[]; if(n&&n.in) n.in.forEach(function(e){ if(!rel||e.rel===rel) a.push(e); }); return a; }
+function section(t,html){ return html?("<h3>"+t+"</h3>"+html):""; }
+// 用語インデックス: 状態/項目/述語 が「どのノードで定義されているか」。クロスリンクの土台。
+function buildTerms(model){ var T={};
+  for(var id in model){ var n=model[id];
+    if(n.label && n.label.length>=2 && !T[n.label]) T[n.label]={id:id,kind:(TYPEJA[n.type]||"カード"),of:n.label};
+    if(n.states) n.states.split("|").forEach(function(s){ s=s.split("//")[0].trim(); if(s&&!T[s]) T[s]={id:id,kind:"状態",of:n.label}; });
+    if(n.fields) n.fields.split(";").forEach(function(f){ f=f.trim(); if(!f)return; var nm=f.replace(/:.*$/,"").replace(/\?$/,"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"項目",of:n.label}; });
+    if(n.behaviors) n.behaviors.split(";").forEach(function(b){ var nm=(b.split(":")[0]||"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"述語",of:n.label}; });
+    if(n.alias) n.alias.split(",").forEach(function(a){ a=a.trim(); if(a&&!T[a]) T[a]={id:id,kind:"別名",of:n.label}; });
+    if(n.transitions) n.transitions.split(";").forEach(function(tr){ var nm=(tr.split(":")[0]||"").trim(); if(nm&&!T[nm]) T[nm]={id:id,kind:"遷移",of:n.label}; });
+  } return T; }
+var TERMS=buildTerms(MODELS.asis);
+// 既知の用語を含むチップ: クリックで定義元へジャンプ
+function infoChip(word,cls){ var w=(word||"").trim(); var t=TERMS[w];
+  if(t) return "<span class=\""+cls+" lk\" title=\""+t.of+" の"+t.kind+"へ\" onclick=\"esNode('"+t.id+"')\">"+w+"</span>";
+  return "<span class=\""+cls+"\">"+w+"</span>"; }
+// 自由文(decide/定義/不変条件)の中の既知用語をリンク化（長い語優先・プレースホルダで二重置換回避）
+function linkify(str){ if(!str) return str||""; var keys=[]; for(var k in TERMS){ if(k.length>=2) keys.push(k); } keys.sort(function(a,b){return b.length-a.length;});
+  var subs=[]; for(var i=0;i<keys.length;i++){ var w=keys[i]; if(str.indexOf(w)<0) continue; var t=TERMS[w];
+    subs.push("<span class=\"tlink\" title=\""+t.of+" の"+t.kind+"へ\" onclick=\"esNode('"+t.id+"')\">"+w+"</span>");
+    str=str.split(w).join(""+(subs.length-1)+""); }
+  for(var j=0;j<subs.length;j++) str=str.split(""+j+"").join(subs[j]); return str; }
+function whenTag(e){ return e.when?(" <span class=\"orc\">"+e.when+"</span> のとき"):""; }
+function relIn(e){ return "<div class=\"rel\">"+chip(e.from)+"<span class=\"v\">"+(VERB[e.rel]||e.rel)+"</span>"+whenTag(e)+" → <b>ここ</b></div>"; }
+function relOut(e){ return "<div class=\"rel\"><b>ここ</b> <span class=\"v\">"+(VERB[e.rel]||e.rel)+"</span>"+whenTag(e)+" → "+chip(e.to)+"</div>"; }
+function hasSpec(n){ return n.spec && ((n.spec.in&&n.spec.in.length)||(n.spec.steps&&n.spec.steps.length)||(n.spec.out&&n.spec.out.length)); }
+function ul(a){ return "<ul>"+a.map(function(x){return "<li>"+x+"</li>";}).join("")+"</ul>"; }
+function specHtml(n){ var sp=n.spec,h="";
+  if(sp.in&&sp.in.length) h+=section("入力",ul(sp.in));
+  if(sp.steps&&sp.steps.length) h+=section("処理（入力→出力に至る手順）", sp.steps.map(function(s,i){ return "<div class=\"flowrow\"><b>"+(i+1)+".</b><b style=\"color:#212529\">"+s.label+"</b>"+(s.rule?" — <span class=\"muted\">"+s.rule+"</span>":"")+"</div>"; }).join(""));
+  if(sp.out&&sp.out.length) h+=section("出力",ul(sp.out)); return h; }
+// data(AND/OR/?) を視覚化: 縦の構成リスト・?=任意・[a|b|c]=OR分岐チップ・フラグ/コード=臭い警告
+function dataFields(str){ if(!str) return "";
+  return str.split(";").map(function(it){ it=it.trim(); if(!it) return "";
+    var name=it, cons="", ors=null;
+    var m=it.match(/^(.+?):\[(.+)\]$/);
+    if(m){ name=m[1].trim(); ors=m[2].split("|").map(function(s){return s.trim();}); }
+    else { var p=it.indexOf(":"); if(p>=0){ name=it.slice(0,p).trim(); cons=it.slice(p+1).trim(); } }
+    var optional=/\?$/.test(name); name=name.replace(/\?$/,"").trim();
+    var sm=/(フラグ|flag|ステータス|status|stage|コード|code)/i.test(name) && !ors;
+    var h="<div class=\"frow\"><b>"+name+"</b>";
+    if(optional) h+="<span class=\"opt\">任意?</span>";
+    if(ors) h+=" <span class=\"arrow\">▸</span>"+ors.map(function(o){return "<span class=\"orc\">"+o+"</span>";}).join("");
+    if(cons) h+=" <span class=\"muted\">〔"+cons.replace(/_/g," ")+"〕</span>";
+    if(sm) h+=" <span class=\"smell\">⚠ OR状態へ</span>";
+    return h+"</div>"; }).join(""); }
+// 状態は「名 // ドメイン上の意味」を持てる（例: 受信 // チャージ要求を受け取り決済が未着手の初期状態）
+function parseStates(str){ if(!str) return []; return str.split("|").map(function(s){ var p=s.split("//");
+    var name=p[0].trim(); if(!name) return null; return {name:name, def:(p[1]||"").trim()}; }).filter(Boolean); }
+function stateChips(str){ return parseStates(str).map(function(s){
+    return "<div class=\"frow\"><span class=\"stc\">"+s.name+"</span>"+(s.def?" <span class=\"muted\">＝"+s.def+"</span>":" <span class=\"muted\">（意味未記述 — states の「// 意味」で定義）</span>")+"</div>"; }).join(""); }
+function transRows(str){ if(!str) return ""; return str.split(";").map(function(t){ t=t.trim(); if(!t) return "";
+    var dp=t.split("//"); var def=(dp[1]||"").trim(); t=dp[0].trim();
+    var m=t.match(/^(.+?):(.+?)->(.+)$/); if(!m) return "<div class=\"frow\">"+t+"</div>";
+    var outs=m[3].split("|").map(function(o){return infoChip(o,"orc");}).join(" ");
+    return "<div class=\"frow\"><b>"+m[1].trim()+"</b>: <span class=\"stc\">"+m[2].trim()+"</span> <span class=\"arrow\">→</span> "+outs+(def?"<div class=\"muted\" style=\"margin-left:1em\">＝"+def+"</div>":"")+"</div>"; }).join(""); }
+function behaviorHtml(n){ var h="";
+  if(n.bin) h+=section("入力", n.bin.split(";").map(function(x){return infoChip(x,"inc");}).join(" "));
+  if(n.decide) h+=section("判定", "<p>"+linkify(n.decide)+"</p>");
+  if(n.bout) h+=section("出力（択一）", n.bout.split("|").map(function(x){return infoChip(x,"orc");}).join(" <span class=\"muted\">または</span> "));
+  return h; }
+function hasBehavior(n){ return n.bin||n.bout||n.decide; }
+// 述語の定義: name: in,in -> out|out // 定義(計算ルール)  ← 「期限内」等の言葉を behavior として定義
+function behaviorsHtml(str){ if(!str) return "";
+  return str.split(";").map(function(b){ b=b.trim(); if(!b) return "";
+    var def=""; var dp=b.indexOf("//"); if(dp>=0){ def=b.slice(dp+2).trim(); b=b.slice(0,dp).trim(); }
+    var m=b.match(/^(.+?):(.*?)->(.+)$/); if(!m) return "<div class=\"frow\">"+b+"</div>";
+    var ins=m[2].split(",").map(function(x){x=x.trim();return x?infoChip(x,"inc"):"";}).join("");
+    var outs=m[3].split("|").map(function(x){return infoChip(x,"orc");}).join(" ");
+    var h="<div class=\"frow\"><b>"+m[1].trim()+"</b>: "+ins+" <span class=\"arrow\">→</span> "+outs;
+    if(def) h+="<div class=\"muted\" style=\"margin-left:1em\">定義: "+linkify(def)+"</div>"; else h+=" <span class=\"smell\">⚠ 定義(//)なし</span>";
+    return h+"</div>"; }).join(""); }
+
+// ===== ビジネス分析: 収益発生/価値提供/UX毀損 の分類 + オブザーバビリティ + システム思考(ファネル/施策) =====
+var BIZJA={revenue:"収益発生",value:"価値提供",degrade:"UX毀損"};
+var BIZCOLOR={revenue:"#ffd43b",value:"#69db7c",degrade:"#ff8787"};
+function bizClasses(n){ return (n.biz||"").split(/[;,]/).map(function(s){return s.trim();}).filter(Boolean); }
+function gchip(m,id){ var n=m[id]; if(!n) return id; return "<span class=\"orc lk\" onclick=\"gotoEs('"+id+"')\">"+n.label+"</span>"; }
+// 上流イベント: event <-emits- aggregate <-handles- command <-issues- policy <-triggers- event …
+function upstreamEvents(m,eid,seen){ var res=[]; seen=seen||{}; var n=m[eid]; if(!n) return res;
+  (n.in||[]).forEach(function(e){ if(e.rel!=="emits") return; var agg=m[e.from]; if(!agg) return;
+    (agg.in||[]).forEach(function(e2){ if(e2.rel!=="handles") return; var cmd=m[e2.from]; if(!cmd) return;
+      (cmd.in||[]).forEach(function(e3){ if(e3.rel!=="issues") return; var pol=m[e3.from]; if(!pol) return;
+        (pol.in||[]).forEach(function(e4){ if(e4.rel!=="triggers") return; var ev=e4.from;
+          if(!seen[ev]){ seen[ev]=1; res.push(ev); upstreamEvents(m,ev,seen).forEach(function(x){res.push(x);}); } }); }); }); });
+  return res; }
+// 漏れ: 上流チェーン上の集約が emit する degrade イベント（収益/価値への到達を妨げる分岐）
+function leakageFor(m,eid){ var leaks={}, chain=[eid].concat(upstreamEvents(m,eid));
+  chain.forEach(function(cid){ var c=m[cid]; if(!c) return;
+    (c.in||[]).forEach(function(e){ if(e.rel!=="emits") return; var agg=m[e.from]; if(!agg) return;
+      (agg.out||[]).forEach(function(o){ if(o.rel==="emits" && m[o.to] && o.to!==eid && bizClasses(m[o.to]).indexOf("degrade")>=0) leaks[o.to]=1; }); }); });
+  return Object.keys(leaks); }
+// クラス別の汎用オブザーバビリティ（取得・計算）。イベント固有の capture=/compute= が無いときの既定。
+var OBS_GEN={
+  revenue:{cap:"確定・売上イベントの発生箇所で、顧客ID・取引を一意に識別する番号(取引ID)・金額・発生時刻をログに出力。要求イベントと同じ取引IDで突き合わせる。",cmp:"件数＝集計期間(例:5分間)あたりのイベント数。額＝金額の合計。成功率＝成功件数÷要求件数。"},
+  value:{cap:"価値が届いたイベントの発生箇所でログを出力し、開始イベントと同じ取引IDで結ぶ。開始→到達の所要時間(レイテンシ)を計測する。",cmp:"成功率＝集計期間あたりの 到達件数÷要求件数。所要時間＝(到達時刻−要求時刻)の分布をとり、中央値(p50)と遅い方から1%(p99)を見る。"},
+  degrade:{cap:"失敗・取消イベントの発生箇所で、失敗理由コードを付けてログ出力。失敗理由を集計の分類軸にする。",cmp:"発生率＝集計期間あたりの 毀損件数÷要求件数。内訳＝失敗理由ごとの件数。"}};
+function obsFor(n){ var cls=bizClasses(n)[0]||"value", g=OBS_GEN[cls]||OBS_GEN.value;
+  return {cap:n.capture||g.cap, cmp:n.compute||g.cmp}; }
+function buildBizReport(){ var m=MODELS.tobe||MODELS.asis||{}, h="", groups={revenue:[],value:[],degrade:[]};
+  for(var id in m){ var n=m[id]; if(n.type!=="event"&&n.type!=="errorevent") continue; bizClasses(n).forEach(function(c){ if(groups[c]) groups[c].push(id); }); }
+  h+="<h2>ビジネス分析（収益・価値・UX）</h2><p class=\"muted\">イベントを事業インパクトで分類し、UXの良し悪しを測る計測点（取得方法・計算方法）と、収益/価値を上げる施策レバー（システム思考）を示す。</p>";
+  ["revenue","value","degrade"].forEach(function(c){
+    h+="<h3 style=\"border-left:6px solid "+BIZCOLOR[c]+";padding-left:8px\">"+BIZJA[c]+"イベント</h3>";
+    if(!groups[c].length){ h+="<p class=\"muted\">（該当なし／未分類）</p>"; return; }
+    groups[c].forEach(function(id){ var n=m[id]; h+="<div class=\"bizrow\">"+gchip(m,id)+"</div>"; }); });
+  // オブザーバビリティ表: 指標 / 取得方法 / 計算方法
+  h+="<h3>オブザーバビリティ設計（何を・どう取得・どう計算）</h3>";
+  h+="<p class=\"muted\">原則: 価値提供→成功率×所要時間／UX毀損→発生率×理由内訳／収益→件数・額・成功率。各イベントの具体は下表。</p>";
+  h+="<p class=\"muted\">用語: <b>所要時間(レイテンシ)</b>=要求から完了までの時間 ／ <b>p50</b>=中央値(半数がこれより速い) ／ <b>p99</b>=遅い方から1%の値(ほぼ最悪) ／ <b>取引ID</b>=1件の処理を一意に識別する番号(要求と完了を突き合わせる鍵) ／ <b>集計期間</b>=指標を集計する時間幅(例:5分間)。</p>";
+  h+="<table class=\"obs\"><thead><tr><th>イベント<th>計測指標<th>取得方法<th>計算方法</tr></thead><tbody>";
+  var evs=groups.revenue.concat(groups.value,groups.degrade).filter(function(v,i,a){return a.indexOf(v)===i;});
+  evs.forEach(function(id){ var n=m[id], o=obsFor(n);
+    h+="<tr><td>"+gchip(m,id)+"<td>"+(n.measure||"-")+"<td>"+o.cap+"<td>"+o.cmp+"</tr>"; });
+  h+="</tbody></table>";
+  var el=document.getElementById("biz_top"); if(el) el.innerHTML=h;
+  // ループ凡例 + システム思考(施策)
+  var L="";
+  if(typeof CLD_LOOPS!=="undefined" && CLD_LOOPS.length){
+    L+="<h3>ループの読み方（強化 R / バランス B）</h3>";
+    L+="<p class=\"muted\">強化ループ(R)=同方向に増幅し成長や暴走を生む。バランスループ(B)=打ち消し合い安定や抑制を生む。負(－)の数が偶数/0なら強化、奇数ならバランス。</p>";
+    CLD_LOOPS.forEach(function(lp){ var R=lp.kind==="R"; var col=R?"#2f9e44":"#e8590c", tag=R?"強化ループ R":"バランスループ B";
+      L+="<div class=\"bizcard\"><b style=\"color:"+col+"\">"+lp.id+" "+tag+"</b>: "+lp.desc+"<div class=\"muted\">関与変数: "+lp.vars.split(",").join(" → ")+" → (戻る)</div></div>"; });
+  }
+  L+="<h3>施策分析（どのイベントを動かすと収益/価値が上がるか）</h3>";
+  var seen={}, targets=groups.revenue.concat(groups.value).filter(function(v){ if(seen[v]) return false; seen[v]=1; return true; });
+  targets.forEach(function(id){ var n=m[id], ups=upstreamEvents(m,id), leaks=leakageFor(m,id);
+    L+="<div class=\"bizcard\"><b>"+gchip(m,id)+"</b>（"+bizClasses(n).map(function(c){return BIZJA[c];}).join("・")+"）を上げるには:";
+    L+="<div class=\"rel\">⬆ ファネル上流（増やす→ "+n.label+" 増）: "+(ups.length?ups.map(function(u){return gchip(m,u);}).join(" ← "):"<span class=\"muted\">(なし)</span>")+"</div>";
+    L+="<div class=\"rel\">⬇ 漏れ（減らす→ "+n.label+" 増）: "+(leaks.length?leaks.map(function(l){return gchip(m,l);}).join(" "):"<span class=\"muted\">(なし)</span>")+"</div>";
+    L+="<div class=\"muted\">施策レバー: 上流イベントの成功率↑／漏れイベントの発生率↓。効果は各イベントの計測(measure=)をSLIにして測る。</div></div>"; });
+  var el2=document.getElementById("biz_loops"); if(el2) el2.innerHTML=L; }
+
+// ===== 用語集（ユビキタス言語）: .es から決定論射影。手書きせず、モデル更新で常に最新 =====
+var TYPEJA_G={actor:"アクター",command:"コマンド",aggregate:"集約",event:"イベント",errorevent:"イベント(エラー)",policy:"ポリシー",readmodel:"リードモデル",external:"外部システム",hotspot:"ホットスポット(論点)"};
+function termDef(n){
+  if(n.role) return n.role;
+  if(n.invariant) return "不変条件: "+n.invariant;
+  if(n.decide) return "判定: "+n.decide;
+  if(n.fields) return "構成: "+n.fields;
+  if(n.discuss) return "論点: "+n.discuss;
+  return "<span class=\"muted\">(定義未記入)</span>";
+}
+// ===== 存在論カテゴリ(UFO-lite): 種/役割/相/関係子 =====
+var ONTO={kind:"種(Kind)",role:"役割(Role)",phase:"相(Phase)",relator:"関係子(Relator)"};
+var ONTOTIP={kind:"それ自体で存在する種別（人・書籍）。同一性の基準を自分で持つ",role:"文脈の中で担う役割（顧客・依頼元）。担い手(role-of)が別に居る",phase:"状態的な局面（与信済 等）。states= が担うので通常このタグは不要",relator:"当事者を結びつける関係の実体（契約・注文・決済）"};
+function ontoBadge(n){ if(!n.is||!ONTO[n.is]) return ""; return " <span class=\"badge ontob\" title=\""+(ONTOTIP[n.is]||"")+"\">"+ONTO[n.is]+"</span>"; }
+function ontoLines(n){ var h="";
+  if(n.kindof) h+="<div class=\"rel\">上位概念（is-a）: "+linkify(n.kindof)+" の一種 <span class=\"muted\">— 上位の不変条件を引き継ぐはず</span></div>";
+  if(n.roleof) h+="<div class=\"rel\">担い手: "+n.roleof+" <span class=\"muted\">— この役割を演じる種(Kind)</span></div>";
+  if(n.alias) h+="<div class=\"rel\">別名: "+n.alias.split(",").map(function(a){return "<span class=\"orc\">"+a.trim()+"</span>";}).join(" ")+"</div>";
+  return h; }
+// ===== 辞書カード: 動詞が暗黙に生む状態区別を展開する（transitions= から機械導出）=====
+// 「決済する」という語の存在が「決済可能／不可能」の区別を生む。✓（できる）だけでなく
+// ✗（できない＝防いでいる事故）まで明示し、前提状態を誰が生むか（能力の供給網）も描く。
+function parseTransitions(t){
+  if(!t) return [];
+  return t.split(";").map(function(s){ s=s.trim(); if(!s) return null;
+    var dp=s.split("//"); var def=(dp[1]||"").trim(); s=dp[0].trim();
+    var i=s.indexOf(":"); if(i<0) return null;
+    var name=s.slice(0,i).trim(); var m=s.slice(i+1).split("->"); if(m.length<2) return null;
+    var outs=m[1].split("|").map(function(x){return x.trim();}).filter(Boolean);
+    return {name:name, from:m[0].trim(), to:outs[0], alts:outs.slice(1), def:def};
+  }).filter(Boolean);
+}
+function dictCards(m){ var h="";
+  for(var id in m){ var n=m[id]; if(n.type!=="aggregate") continue;
+    var stobjs=parseStates(n.states); var sdef={}; stobjs.forEach(function(s){ sdef[s.name]=s.def; });
+    var sts=stobjs.map(function(s){return s.name;});
+    var trs=parseTransitions(n.transitions);
+    if(sts.length<2||!trs.length) continue;
+    h+="<h3>『"+n.label+"』の動詞と状態 <span class=\"muted\">— 動詞は状態の区別を暗黙に生む。✗＝防いでいる事故</span></h3>";
+    h+="<div class=\"cardgrid\">";
+    trs.forEach(function(t){
+      var stem=t.name.replace(/する$/,"");
+      var prod=trs.filter(function(p){return p.to===t.from||p.alts.indexOf(t.from)>=0;});
+      h+="<div class=\"dictcard verbcard\"><div class=\"dch\">"+t.name+"<span class=\"dctype\" style=\"background:var(--command)\">動詞</span></div>";
+      h+="<div class=\"meaning\">"+(t.def?("<b>ドメイン上の意味</b>＝"+t.def):("<b>ドメイン上の意味</b>＝<span class=\"muted\">未記述（この語は業務で何をすることか。transitions の「// 意味」で定義）</span>"))+"</div>";
+      h+="<div class=\"sig\">"+t.name+" : <b>"+t.from+"</b>の"+n.label+" ─→ "+t.to+(t.alts.length?" ｜ "+t.alts.join(" ｜ "):"")+"</div>";
+      h+="<div class=\"muted\">⚡ この語が「"+t.from+"である／でない」の区別を生む＝前提を満たした値だけを受け付ける</div>";
+      h+="<table class=\"acc\">";
+      sts.forEach(function(s){
+        if(s===t.from) h+="<tr class=\"accok\"><td>"+s+"</td><td>✓ 受け付ける ─→ "+t.to+"</td></tr>";
+        else if(s===t.to) h+="<tr class=\"accng\"><td>"+s+"</td><td>✗ 既に"+t.to+"（二重"+stem+"を防ぐ）</td></tr>";
+        else h+="<tr class=\"accng\"><td>"+s+"</td><td>✗ "+t.from+"でない（この変化は仕様が定義しない）</td></tr>";
+      });
+      h+="</table>";
+      h+="<div class=\"rel\">前提「"+t.from+"」を生むのは: "+(prod.length?prod.map(function(p){return "<span class=\"inc\">"+p.name+"</span>";}).join(" "):"<span class=\"muted\">（初期状態＝受理時に生まれる）</span>")+"</div>";
+      h+="<div class=\"muted\">実装: if(状態=="+t.from+") の実行時チェックは漏れうる → 引数の型を「"+t.from+"の"+n.label+"」にする（条件を満たさない値はそもそも渡せない）</div>";
+      h+="</div>";
+    });
+    sts.forEach(function(s){
+      var can=trs.filter(function(t){return t.from===s;});
+      var cant=trs.filter(function(t){return t.from!==s;});
+      var born=trs.filter(function(t){return t.to===s||t.alts.indexOf(s)>=0;});
+      h+="<div class=\"dictcard statecard\"><div class=\"dch\">"+s+"<span class=\"dctype\" style=\"background:var(--aggregate)\">状態</span></div>";
+      h+="<div class=\"meaning\">"+(sdef[s]?("<b>ドメイン上の意味</b>＝"+sdef[s]):("<b>ドメイン上の意味</b>＝<span class=\"muted\">未記述（この状態は業務上どういう局面か。states の「// 意味」で定義）</span>"))+"</div>";
+      h+="<div class=\"rel\">できること: "+(can.length?can.map(function(t){return "<span class=\"orc\">✓ "+t.name+" → "+t.to+"</span>";}).join(" "):"<span class=\"muted\">（終端状態＝ここからの変化は無い）</span>")+"</div>";
+      h+="<div class=\"rel\">できないこと: "+cant.map(function(t){return "<span class=\"smell\">✗ "+t.name+"</span>";}).join(" ")+"</div>";
+      h+="<div class=\"muted\">この状態を生む動詞: "+(born.length?born.map(function(t){return t.name;}).join("・"):"（初期状態）")+"</div>";
+      h+="</div>";
+    });
+    h+="</div>";
+  }
+  return h;
+}
+// is-a 分類（kind-of= から導出）: 上位概念ごとに下位をまとめる
+function taxonomy(m){ var kids={}, has=false;
+  for(var id in m){ var n=m[id]; if(!n.kindof) continue; has=true; (kids[n.kindof]=kids[n.kindof]||[]).push(id); }
+  if(!has) return "";
+  var h="<h3>分類（is-a）<span class=\"muted\"> — 「Xの一種」。下位は上位の不変条件を引き継ぐはず</span></h3>";
+  for(var parent in kids){ h+="<div class=\"frow\"><b>"+linkify(parent)+"</b> ← "+kids[parent].map(function(c){return gchip(m,c);}).join(" ")+"</div>"; }
+  h+="<p class=\"muted\">カテゴリ凡例: 種(Kind)=それ自体で存在／役割(Role)=文脈で担う(担い手が別に居る)／相(Phase)=状態的局面(states=が担当)／関係子(Relator)=当事者を結ぶ関係の実体(契約・注文)。</p>";
+  return h; }
+function buildGlossary(){
+  var m=MODELS.tobe||MODELS.asis||{}, h="";
+  h+="<h2>用語集（ユビキタス言語）</h2><p class=\"muted\">.es から決定論射影（手書きしない＝モデル更新で常に最新）。用語をクリックすると図の定義元へ移動。種別ごとにグルーピング。</p>";
+  h+=taxonomy(m);
+  h+=dictCards(m);
+  var order=["aggregate","command","event","errorevent","policy","readmodel","actor","external","hotspot"], groups={};
+  for(var id in m){ var n=m[id]; (groups[n.type]=groups[n.type]||[]).push(id); }
+  order.forEach(function(t){ var ids=groups[t]; if(!ids||!ids.length) return;
+    h+="<h3>"+(TYPEJA_G[t]||t)+"（"+ids.length+"）</h3>";
+    h+="<table class=\"obs\"><thead><tr><th>用語<th>定義（役割／不変条件／構成）<th>構造</tr></thead><tbody>";
+    ids.forEach(function(id){ var n=m[id], st=[];
+      if(n.fields) st.push("項目: "+n.fields);
+      if(n.states) st.push("状態: "+n.states);
+      if(n.behaviors) st.push("述語: "+n.behaviors);
+      h+="<tr><td>"+gchip(m,id)+"<td>"+termDef(n)+"<td class=\"muted\">"+(st.join("<br>")||"-")+"</td></tr>"; });
+    h+="</tbody></table>"; });
+  var el=document.getElementById("glossary_report"); if(el) el.innerHTML=h;
+}
+
+function esNode(id){ var n=NODES[id]; if(!n) return; var h="";
+  h+="<h2>"+n.label+"<span class=\"loc\">◀ 図で強調中</span></h2><span class=\"badge\" title=\""+(ROLE[n.type]||"")+"\" style=\"background:var(--"+n.type+");color:"+fg(n.type)+"\">"+(TYPEJA[n.type]||n.type)+"</span>"+ontoBadge(n);
+  h+=ontoLines(n);
+  h+=section("このカードの役割", n.role?("<p>"+linkify(n.role)+"</p>"):"<p class=\"muted\">（このカード固有の役割は未記述。.es に role= を追記）</p>");
+  h+=changeBlock(id);
+  if(n.discuss) h+=section("論点（何を議論・決めるか）", "<div style=\"border-left:3px solid #e8590c;padding:4px 10px;background:#fff4e6\">"+linkify(n.discuss)+"</div>");
+  var sp=hasSpec(n); if(sp) h+=specHtml(n);
+  if(n.type==="command"){
+    if(hasBehavior(n)) h+=behaviorHtml(n);
+    if(n.behaviors) h+=section("述語の定義（この判定で使う言葉）", behaviorsHtml(n.behaviors));
+    h+=section("トリガー（誰が発行するか）", inOf(id,"issues").map(relIn).join(""));
+    if(!sp && !hasBehavior(n)) h+="<p class=\"muted\">⚠ このコマンドの処理仕様は未分析です。in / out / decide（または .spec）を追記すると箱の中身が表示されます。</p>";
+    h+=section("後続（コレオグラフィ＝箱の外の繋がり。処理仕様ではない）", outOf(id).map(relOut).join(""));
+  } else if(n.type==="aggregate"){
+    if(n.states) h+=section("状態（OR）", stateChips(n.states));
+    if(n.transitions) h+=section("遷移（behavior）", transRows(n.transitions));
+    if(n.fields) h+=section("構成（AND）", dataFields(n.fields));
+    h+=section("不変条件 (invariant)", n.invariant?("<p>"+linkify(n.invariant)+"</p>"):(n.fields||n.states?"":"<p class=\"muted\">⚠ 集約だが不変条件なし</p>"));
+    h+=section("受けるコマンド", inOf(id,"handles").map(function(e){return chip(e.from);}).join(" "));
+    h+=section("発行イベント", outOf(id,"emits").map(function(e){return chip(e.to);}).join(" "));
+    h+=section("要確認（hotspot）", inOf(id,"marks").map(function(e){return chip(e.from);}).join(" "));
+  } else if(n.type==="event"||n.type==="errorevent"||n.type==="readmodel"){
+    if(n.fields) h+=section(n.type==="readmodel"?"このビューが持つ情報":"このイベントが伝える情報", dataFields(n.fields));
+    h+=section("生成元", inOf(id,"emits").map(relIn).join(""));
+    h+=section("起動／供給先", outOf(id).map(relOut).join(""));
+  } else if(n.type==="policy"){
+    if(hasBehavior(n)) h+=behaviorHtml(n);
+    if(n.behaviors) h+=section("述語の定義（この判定で使う言葉）", behaviorsHtml(n.behaviors));
+    h+=section("起動契機（どのイベントで動くか）", inOf(id,"triggers").map(relIn).join(""));
+    h+=section("発行コマンド", outOf(id,"issues").map(relOut).join(""));
+  } else if(n.type==="bc"||n.type==="ext"){
+    if(n.kind) h+=section("ドメイン種別", "<span class=\"badge\" style=\"background:"+(n.kind==="core"?"#ffd43b":n.kind==="supporting"?"#b2f2bb":"#dee2e6")+"\">"+(KINDJA[n.kind]||n.kind)+"</span>");
+    if(n.summary) h+=section("責務・概要", "<p>"+linkify(n.summary)+"</p>");
+    if(n.aggregates) h+=section("含むES流れ（コマンド → 集約 → イベント）", bcFlows(n.aggregates));
+    if(n.repos) h+=section("所属リポ／構成", n.repos.split(";").map(function(x){return "<span class=\"inc\">"+x.trim()+"</span>";}).join(" "));
+    h+=section("← 上流（供給を受ける）", (n.in||[]).map(function(e){return cmapRel(e,false);}).join(""));
+    h+=section("→ 下流（供給する）", (n.out||[]).map(function(e){return cmapRel(e,true);}).join(""));
+  } else { h+=section("← 上流",(n.in||[]).map(relIn).join("")); h+=section("→ 下流",(n.out||[]).map(relOut).join("")); }
+  if(n.evidence) h+=section("根拠 (evidence)","<code>"+n.evidence+"</code>");
+  if(n.note) h+=section("実装の評価・アドバイス（学習）", "<p>"+linkify(n.note)+"</p>");
+  document.getElementById("side").innerHTML=h;
+  var lf=CENTERS[activeVp()]; if(lf) lf(id); }
+function filter(q){ q=(q||"").toLowerCase(); var box=document.getElementById("side");
+  if(!q){ box.innerHTML="<p class=\"muted\">検索結果がここに出ます。</p>"; return; }
+  var hits=""; for(var id in NODES){ var n=NODES[id]; if((n.label+" "+(TYPEJA[n.type]||n.type)).toLowerCase().indexOf(q)>=0) hits+="<div class=\"hit\" onclick=\"esNode('"+id+"')\">"+chip(id)+"</div>"; }
+  box.innerHTML=hits||"<p class=\"muted\">該当なし</p>"; }
+
+var FITS={},ZOOMS={},CENTERS={};
+function initPanZoom(vpId,stId){ var vp=document.getElementById(vpId),stage=document.getElementById(stId); if(!vp||!stage) return; var svg=stage.querySelector("svg"); if(!svg) return;
+  var vb=svg.viewBox&&svg.viewBox.baseVal; var sw=(vb&&vb.width)||900, sh=(vb&&vb.height)||600;
+  if(vb&&vb.width){ svg.setAttribute("width",sw); svg.setAttribute("height",sh); } svg.style.maxWidth="none"; svg.style.height="auto";
+  var scale=1,tx=0,ty=0; function apply(){ stage.style.transform="translate("+tx+"px,"+ty+"px) scale("+scale+")"; }
+  function fit(){ var vw=vp.clientWidth,vh=vp.clientHeight; if(!vw||!vh) return; var s=Math.min(vw/sw,vh/sh)*0.95; if(!isFinite(s)||s<=0)s=1; scale=s; tx=(vw-sw*s)/2; ty=(vh-sh*s)/2; apply(); }
+  function zoomAt(mx,my,f){ var ns=Math.min(8,Math.max(0.08,scale*f)); tx=mx-(mx-tx)*(ns/scale); ty=my-(my-ty)*(ns/scale); scale=ns; apply(); }
+  // Ctrl+ホイール / トラックパッドのピンチ(ブラウザはctrlKey付きwheelで送る) → 拡大縮小（カーソル位置基準）。素のホイール/2本指スワイプ → 移動
+  vp.addEventListener("wheel",function(e){ e.preventDefault(); var r=vp.getBoundingClientRect();
+    if(e.ctrlKey||e.metaKey){ zoomAt(e.clientX-r.left,e.clientY-r.top,e.deltaY<0?1.12:1/1.12); }
+    else { tx-=e.deltaX; ty-=e.deltaY; apply(); } },{passive:false});
+  var drag=false,lx,ly; vp.addEventListener("pointerdown",function(e){ if(e.target.closest(".node,.clickable,a")) return; drag=true;lx=e.clientX;ly=e.clientY;vp.setPointerCapture(e.pointerId);vp.style.cursor="grabbing"; });
+  vp.addEventListener("pointermove",function(e){ if(!drag)return; tx+=e.clientX-lx; ty+=e.clientY-ly; lx=e.clientX; ly=e.clientY; apply(); });
+  vp.addEventListener("pointerup",function(){drag=false;vp.style.cursor="grab";}); vp.addEventListener("pointerleave",function(){drag=false;vp.style.cursor="grab";}); vp.addEventListener("dblclick",fit);
+  function locate(nodeId){ var ns=stage.querySelectorAll("g.node"), g=null, i;
+    for(i=0;i<ns.length;i++){ var m=(ns[i].id||"").match(/^flowchart-(.+)-\d+$/); if(m && m[1]===nodeId){ g=ns[i]; break; } }
+    for(i=0;i<ns.length;i++) ns[i].classList.remove("es-hl");
+    var svg=stage.querySelector("svg"); if(svg) svg.classList.toggle("has-hl", !!g);
+    if(!g) return; g.classList.remove("es-hl"); void g.offsetWidth; g.classList.add("es-hl");
+    var gr=g.getBoundingClientRect(), vr=vp.getBoundingClientRect();
+    tx += (vr.left+vp.clientWidth/2)-(gr.left+gr.width/2);
+    ty += (vr.top+vp.clientHeight/2)-(gr.top+gr.height/2);
+    apply(); }
+  FITS[vpId]=fit; ZOOMS[vpId]=function(f){ zoomAt(vp.clientWidth/2,vp.clientHeight/2,f); }; CENTERS[vpId]=locate; }
+function activeVp(){ return "vp_"+ACTIVE; }
+window.esFit=function(){ var f=FITS[activeVp()]; if(f) f(); };
+window.esZoom=function(f){ var z=ZOOMS[activeVp()]; if(z) z(f); };
+window.toggleHelp=function(show){ var h=document.getElementById("help"); if(h) h.classList.toggle("hidden", !show); };
+document.addEventListener("keydown",function(e){ if(e.key==="Escape") toggleHelp(0); });
+window.setView=function(name){ ACTIVE=name; NODES=MODELS[name]||NODES; TERMS=buildTerms(NODES);
+  ["asis","tobe","cmap","glossary","biz","analysis"].forEach(function(k){ var v=document.getElementById("view_"+k); if(v) v.classList.toggle("hidden",k!==name); var b=document.getElementById("tab_"+k); if(b) b.className=(k===name?"tab on":"tab"); });
+  if(name==="glossary"){ buildGlossary(); return; }
+  if(name==="biz"){ buildBizReport(); return; }
+  if(name==="analysis"){ return; }
+  document.getElementById("side").innerHTML="<p class=\"muted\">"+(name==="tobe"?"TO-BE（隠れた集約を表出）":"AS-IS（コードの流れ）")+" のノードをクリックすると詳細が出ます。</p>";
+  var f=FITS[activeVp()]; if(f) f(); };
+window.addEventListener("resize",function(){ var f=FITS[activeVp()]; if(f) f(); });
+(function initDivider(){ var dv=document.getElementById("divider"),side=document.getElementById("side"); if(!dv||!side) return; var dragging=false;
+  dv.addEventListener("pointerdown",function(e){ dragging=true; dv.setPointerCapture(e.pointerId); document.body.style.userSelect="none"; e.preventDefault(); });
+  window.addEventListener("pointermove",function(e){ if(!dragging) return; var w=window.innerWidth-e.clientX; w=Math.max(240,Math.min(window.innerWidth*0.8,w)); side.style.width=w+"px"; var f=FITS[activeVp()]; if(f) f(); });
+  window.addEventListener("pointerup",function(){ if(dragging){ dragging=false; document.body.style.userSelect=""; } });
+})();
+</script>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+mermaid.initialize({startOnLoad:false,securityLevel:"loose",flowchart:{curve:"basis"}});
+await mermaid.run();
+initPanZoom("vp_asis","st_asis"); var fa=FITS["vp_asis"]; if(fa) fa();
+if(document.getElementById("vp_tobe")){ initPanZoom("vp_tobe","st_tobe"); var ft=FITS["vp_tobe"]; if(ft) ft(); }
+if(document.getElementById("vp_cmap")){ initPanZoom("vp_cmap","st_cmap"); var fc=FITS["vp_cmap"]; if(fc) fc(); }
+if(document.getElementById("vp_tobe")||document.getElementById("vp_cmap")) setView("asis");
+</script>
+</body></html>

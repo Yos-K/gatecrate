@@ -7,6 +7,7 @@ use std::io;
 use std::process::ExitCode;
 
 mod real;
+mod render_viewer;
 
 #[derive(Parser)]
 #[command(name = "gatecrate", version, about = "Portable CI / quality-gate harness")]
@@ -21,6 +22,21 @@ enum Command {
     Check {
         #[command(subcommand)]
         gate: CheckGate,
+    },
+    /// Project living-model sources (.es/.cmap/.cld) to views.
+    Es {
+        #[command(subcommand)]
+        projection: EsProjection,
+    },
+}
+
+#[derive(Subcommand)]
+enum EsProjection {
+    /// Render a self-contained interactive HTML viewer to stdout.
+    RenderHtml {
+        /// Sources, classified by extension: .es (as-is, then to-be), .cmap, .cld, .md ...
+        #[arg(value_name = "FILE")]
+        files: Vec<String>,
     },
 }
 
@@ -50,6 +66,9 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
         Command::Check { gate } => run_check(gate),
+        Command::Es {
+            projection: EsProjection::RenderHtml { files },
+        } => render_viewer::run(&files),
     }
 }
 

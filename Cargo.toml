@@ -3,6 +3,8 @@ resolver = "2"
 members = [
     "crates/gatecrate-harness",
     "crates/gatecrate-gates",
+    "crates/gatecrate-model",
+    "crates/gatecrate-render",
     "crates/gatecrate-cli",
 ]
 

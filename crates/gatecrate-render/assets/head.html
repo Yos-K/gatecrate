@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Event Storming — domain view</title>
+<style>
+  :root{--actor:#FFE8CC;--command:#4DABF7;--aggregate:#FFE066;--event:#FFA94D;--errorevent:#FFA8A8;--policy:#DA77F2;--readmodel:#B2F2BB;--external:#FFD8A8;--hotspot:#FF6B6B;--bc:#D0EBFF;--ext:#F1F3F5}
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,"Hiragino Sans",sans-serif;color:#212529}
+  header{padding:10px 16px;background:#1864ab;color:#fff} header b{font-size:15px}
+  #wrap{display:flex;height:calc(100vh - 44px)}
+  #left{flex:1;display:flex;flex-direction:column;padding:8px;min-width:0}
+  #side{width:400px;flex:0 0 auto;min-width:240px;max-width:80vw;overflow:auto;padding:14px;background:#f8f9fa}
+  #divider{flex:0 0 7px;cursor:col-resize;background:#dee2e6;border-left:1px solid #ced4da} #divider:hover{background:#adb5bd}
+  #search{width:100%;padding:7px;margin-bottom:8px;border:1px solid #ced4da;border-radius:6px}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;font-size:11px}
+  .legend span{padding:2px 7px;border-radius:10px;border:1px solid #00000022}
+  #toolbar{display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap}
+  #toolbar button{padding:4px 10px;border:1px solid #ced4da;background:#fff;border-radius:6px;cursor:pointer;font-size:13px}
+  #toolbar button:hover{background:#e7f5ff}
+  #toolbar button.tab.on, #toolbar button.tab.on:hover{background:#1864ab;color:#fff;border-color:#1864ab}
+  g.node.es-hl > rect, g.node.es-hl > polygon, g.node.es-hl > path, g.node.es-hl > circle{stroke:#e8590c !important;stroke-width:6px !important}
+  svg.has-hl g.node:not(.es-hl){opacity:.3;transition:opacity .2s} svg.has-hl .edgePath,svg.has-hl .edgeLabel{opacity:.35}
+  @keyframes espulse{0%,100%{filter:drop-shadow(0 0 6px rgba(232,89,12,.7))}50%{filter:drop-shadow(0 0 18px rgba(232,89,12,1))}}
+  g.node.es-hl{animation:espulse 1s ease-in-out 3}
+  .tlink{cursor:pointer;border-bottom:1px dotted #1864ab;color:#1864ab}
+  .lk{cursor:pointer;text-decoration:underline dotted 1px;text-underline-offset:2px}
+  .loc{font-size:11px;color:#e8590c;font-weight:normal;margin-left:8px}
+  #side h2 .loc{font-size:11px;color:#868e96;font-weight:normal;margin-left:6px}
+  .sep{width:1px;align-self:stretch;background:#dee2e6;margin:0 4px}
+  .view{display:flex;flex:1;min-height:0;flex-direction:column} .view.hidden{display:none}
+  .report{flex:1;overflow:auto;padding:14px 22px;line-height:1.7} .report h2{margin:.2em 0;font-size:18px} .report h3{margin:1.1em 0 .3em;font-size:15px} .bizrow{margin:6px 0} .bizcard{border:1px solid #dee2e6;border-radius:7px;padding:10px 12px;margin:9px 0;background:#fff}
+  .obs{border-collapse:collapse;width:100%;font-size:12px;margin:8px 0} .obs th,.obs td{border:1px solid #dee2e6;padding:5px 7px;text-align:left;vertical-align:top} .obs th{background:#f1f3f5;white-space:nowrap} .cldwrap{border:1px solid #dee2e6;border-radius:7px;padding:6px;margin:6px 0;background:#fff;overflow:auto}
+  /* 辞書カード（動詞の受理パネル＋状態の双対カード） */
+  .cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin:10px 0 18px}
+  .dictcard{border:1px solid #dee2e6;border-radius:9px;padding:10px 13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .verbcard{border-top:4px solid var(--command)} .statecard{border-top:4px solid var(--aggregate)}
+  .dch{font-weight:700;font-size:15px;margin-bottom:4px} .dctype{float:right;font-size:11px;font-weight:600;padding:1px 8px;border-radius:9px}
+  .sig{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:6px;padding:5px 8px;margin:5px 0}
+  .acc{border-collapse:collapse;width:100%;font-size:12px;margin:7px 0} .acc td{border:1px solid #e9ecef;padding:4px 8px}
+  .acc td:first-child{white-space:nowrap;font-weight:600} .accok{background:#ebfbee} .accng{background:#fff5f5;color:#666}
+  .meaning{background:#fff9db;border-left:3px solid #fab005;padding:4px 9px;margin:5px 0;font-size:12.5px;border-radius:0 5px 5px 0}
+  .report table{border-collapse:collapse;margin:8px 0;font-size:13px;width:100%} .report th,.report td{border:1px solid #dee2e6;padding:5px 8px;text-align:left;vertical-align:top} .report th{background:#f1f3f5} .report ul,.report ol{margin:6px 0;padding-left:1.5em} .report code{background:#f1f3f5;padding:1px 4px;border-radius:3px;font-size:12px} .report pre.code{background:#f8f9fa;border:1px solid #e9ecef;padding:8px;overflow:auto;font-size:12px;line-height:1.4} .report hr{border:0;border-top:2px dashed #ced4da;margin:24px 0}
+  /* 分析レポート: 各docを中央寄せの紙カードにし、行長を制限して読みやすく */
+  .report.analysis{background:#eef1f4;padding:26px 18px}
+  .analysis .doc{max-width:880px;margin:0 auto 26px;background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:30px 42px;line-height:1.9;color:#3a4149;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+  .analysis .doc h1{font-size:22px;line-height:1.4;margin:0 0 18px;padding-bottom:12px;border-bottom:3px solid #339af0;color:#1864ab}
+  .analysis .doc h2{font-size:17px;margin:30px 0 10px;padding:6px 0 6px 12px;border-left:4px solid #4dabf7;background:linear-gradient(90deg,#f1f8ff,transparent);color:#1971c2}
+  .analysis .doc h3{font-size:14.5px;margin:20px 0 6px;color:#37404a;font-weight:700}
+  .analysis .doc p{margin:11px 0}
+  .analysis .doc ul,.analysis .doc ol{margin:10px 0;padding-left:1.5em} .analysis .doc li{margin:5px 0}
+  .analysis .doc table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .analysis .doc th,.analysis .doc td{border:1px solid #e3e6ea;padding:9px 11px;text-align:left;vertical-align:top}
+  .analysis .doc th{background:#e7f5ff;color:#1864ab;font-weight:700;white-space:nowrap}
+  .analysis .doc tbody tr:nth-child(even){background:#f8fafb}
+  .analysis .doc code{background:#fff0f0;color:#c92a2a;padding:1px 5px;border-radius:3px;font-size:.88em}
+  .analysis .doc pre.code{background:#262b33;color:#e9ecef;border:0;padding:14px 16px;border-radius:8px;overflow:auto;line-height:1.55;font-size:12px}
+  .analysis .doc strong,.analysis .doc b{color:#15406b}
+  .vp{flex:1;position:relative;overflow:hidden;border:1px solid #dee2e6;border-radius:6px;background:#fff;cursor:grab;touch-action:none}
+  .stage{position:absolute;top:0;left:0;transform-origin:0 0} .mermaid{font-size:14px}
+  #side h2{font-size:16px;margin:.2em 0} #side h3{font-size:12px;color:#868e96;margin:1em 0 .3em;text-transform:uppercase;letter-spacing:.04em}
+  .badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;border:1px solid #00000022}
+  .chip{display:inline-block;padding:2px 9px;border-radius:11px;font-size:12px;border:1px solid #00000022;cursor:pointer;margin:1px} .chip:hover{outline:2px solid #1864ab55}
+  .v{display:inline-block;font-size:10px;color:#fff;background:#868e96;border-radius:8px;padding:1px 6px;margin:0 5px;vertical-align:middle}
+  .rel,.flowrow{margin:4px 0;line-height:2} .flowrow b{color:#868e96;margin-right:4px}
+  .frow{margin:4px 0;line-height:2}
+  .chg{border:1px solid #74c0fc;border-radius:6px;background:#e7f5ff;padding:6px 10px;margin:8px 0} .chgh{font-weight:600;color:#1971c2;margin-bottom:3px}
+  .help-btn{background:#fff3bf;border-color:#ffd43b;font-weight:600}
+  #help{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;z-index:1000;padding:30px 16px;overflow:auto} #help.hidden{display:none}
+  .help-card{background:#fff;max-width:760px;width:100%;border-radius:12px;padding:24px 32px;box-shadow:0 8px 40px rgba(0,0,0,.3);line-height:1.85} .help-card h2{margin:.1em 0 .3em;color:#1864ab} .help-card h3{margin:1.2em 0 .3em;color:#1971c2;border-left:4px solid #4dabf7;padding-left:10px;font-size:15px} .help-card ul{padding-left:1.4em} .help-card li{margin:5px 0} .help-card p{margin:8px 0}
+  .help-x{float:right;background:#f1f3f5;border:1px solid #ced4da;border-radius:6px;padding:4px 10px;cursor:pointer}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin:10px 0;align-items:center;font-size:13px;line-height:2}
+  .lg{display:inline-block;border:1px solid;border-radius:5px;padding:2px 9px;font-size:12px;font-weight:600;color:#000}
+  .lg2{display:inline-block;background:#e7f5ff;border:1px solid #74c0fc;border-radius:5px;padding:2px 9px;font-size:12px;font-weight:600;color:#1864ab}
+  .opt{font-size:10px;background:#e9ecef;border-radius:8px;padding:0 6px;margin-left:5px;color:#495057}
+  .orc{display:inline-block;background:#e7f5ff;border:1px solid #74c0fc;border-radius:9px;padding:1px 9px;margin:1px;font-size:12px}
+  .stc{display:inline-block;background:#fff3bf;border:1px solid #ffd43b;border-radius:9px;padding:1px 9px;margin:1px;font-size:12px}
+  .inc{display:inline-block;background:#f1f3f5;border:1px solid #ced4da;border-radius:9px;padding:1px 9px;margin:1px;font-size:12px}
+  .smell{color:#e03131;font-size:11px;font-weight:bold}
+  .arrow{color:#868e96;margin:0 4px}
+  #side code{display:block;background:#fff;border:1px solid #dee2e6;padding:6px;border-radius:5px;font-size:12px;word-break:break-all}
+  .hit{cursor:pointer;padding:4px 6px;border-radius:5px} .hit:hover{background:#e7f5ff} .muted{color:#868e96;font-size:12px}
+</style></head><body>
+<header><b>イベントストーミング — ドメインビュー</b> &nbsp;<span style="font-size:12px;opacity:.85">ノードをクリックで詳細（コマンド=入力/処理/出力 ・ 集約=構成）。AS-IS=コードの流れ / TO-BE=隠れた集約を表出</span></header>
+<div id="wrap"><div id="left">
+  <input id="search" placeholder="ノードを検索（名前・型）…" oninput="filter(this.value)">
+  <div class="legend"><span style="background:var(--actor)">アクター</span><span style="background:var(--command)">コマンド</span><span style="background:var(--aggregate)">集約</span><span style="background:var(--event)">イベント</span><span style="background:var(--errorevent)">エラー</span><span style="background:var(--policy);color:#fff">ポリシー</span><span style="background:var(--readmodel)">リードモデル</span><span style="background:var(--external)">外部</span><span style="background:var(--hotspot);color:#fff">ホットスポット</span></div>
+  <div id="toolbar">

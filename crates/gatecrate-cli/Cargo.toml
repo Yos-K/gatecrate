@@ -14,3 +14,5 @@ path = "src/main.rs"
 clap = { workspace = true }
 gatecrate-harness = { path = "../gatecrate-harness" }
 gatecrate-gates = { path = "../gatecrate-gates" }
+gatecrate-model = { path = "../gatecrate-model" }
+gatecrate-render = { path = "../gatecrate-render" }

@@ -1,0 +1,10 @@
+[package]
+name = "gatecrate-render"
+description = "Deterministic projections from living-model sources to diagrams and viewers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+gatecrate-model = { path = "../gatecrate-model" }
