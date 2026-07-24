@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/gatecrate-harness",
+    "crates/gatecrate-gates",
+    "crates/gatecrate-model",
+    "crates/gatecrate-render",
+    "crates/gatecrate-cli",
+]
+
+[workspace.package]
+version = "0.12.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/Yos-K/gatecrate"
+
+# 依存ゼロ方針（Phase 0）: ビルド秒数・MSRV・監査可能性を最優先し std のみで書く。
+# 依存追加は docs/design/rust-port-plan.md の未決定事項（依存ポリシー）の決定後に。
+[workspace.dependencies]
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+strip = true

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Rust 移植 Phase 0（#rust-port・docs/design/rust-port-plan.md の実装着手）**: ハーネスの2原型を型として実装。
+  **Gate 原型** = `gatecrate-harness`（intent/population/criterion/coherence/evidence/finding/report の層。
+  「検査不成立(exit 2)」と「違反0」を型で分離し、設定ミスが緑に化ける経路を構造で排除）＋
+  `gatecrate-gates`（adr-review・interaction-traceability の2本。証拠層差し替えで実 git 不要の検査23件）。
+  **Projection 原型** = `gatecrate-model`（.es/.cmap/.cld/.spec 共通の行レコード文法と型）＋
+  `gatecrate-render`（Mermaid/内蔵データ/Markdown/ビューア組み立て）。CLI は clap（`gatecrate check …` /
+  `gatecrate es render-html …`）。
+
+### Changed
+- **`es-render-html.sh` を Rust 実装へのシムに置換（800行 → 28行）**: 呼び出し面・exit code 契約
+  （0/1/2）・出力は完全互換。等価性はゴールデン6本（最小〜実モデル104KB〜sample一式）の
+  **バイト一致**で証明し、既存スモークテスト49件はシム経由で Rust 実装を検証する。
+  CI は挙動テスト前に `cargo build --release`（実測 ~9s・配布形態判断の材料）。
+  binary 未ビルド時は「黙って劣化」せず exit 2 で明示エラー。
+
 ## [v0.12.0] - 2026-07-20
 
 ### Added

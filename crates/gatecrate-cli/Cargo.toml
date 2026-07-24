@@ -1,0 +1,18 @@
+[package]
+name = "gatecrate-cli"
+description = "gatecrate command-line entry point (thin dispatch over the harness layers)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "gatecrate"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+gatecrate-harness = { path = "../gatecrate-harness" }
+gatecrate-gates = { path = "../gatecrate-gates" }
+gatecrate-model = { path = "../gatecrate-model" }
+gatecrate-render = { path = "../gatecrate-render" }

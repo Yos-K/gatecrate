@@ -6,7 +6,30 @@
 
 ## 現在の状態
 
-**最直近: 公開前衛生監査（2026-07-20）**。全履歴と公開treeについてauthor email、既知のsecret形式、
+**最直近: Rust 移植 Phase 0 — 2原型の実装とパイロット統合（2026-07-22〜24・branch: feat/rust-port-phase0）**。
+docs/design/rust-port-plan.md の実装着手。ユーザーレビューで「awk の逐語転写は抽象化でない」と棄却された
+初版を捨て、モデリングからやり直した経緯が重要:
+
+- **Gate 原型（5層＋1）**: intent（何を検出したいか・型・検出しないことの宣言）/ population（母集団）/
+  criterion（各対象の基準）/ **coherence（集合全体の整合。2本目のゲート移植で「重複禁止・マーカー逆引きは
+  1対象では判定不能」と判明し追加）** / evidence（唯一の副作用層・trait で差し替え可能）/ finding / report
+  （exit 0/1/2 契約を一度だけ実装。**検査不成立は違反0と型で別**——設定ミスが緑に化ける経路の構造的排除）。
+- **Projection 原型**: 4源泉形式は「タグ付き行レコード＋パイプ属性」の単一文法（record.rs に一度だけ。
+  `states=閉|開` の `|` は区切りでない、が文法として明文化）。es/cmap/cld/spec は語彙定義のみ。
+- **等価性の証明**: ゴールデン6本バイト一致（sh版出力と1バイトも違わない）。シム化後は既存スモーク49件が
+  Rust 実装を検証。パイロットの es-render-html.sh は 800行→28行のシムに。
+- **検証済み**: cargo test 26件・全49挙動スイート・全自己ゲート（posix/300行/分類/manifest）green。
+  clippy 警告0。CI に cargo build --release（実測 9.3s cold）+ cargo test を配線。
+- **次のアクション**: (1) 本ブランチ PR→CI green 確認 (2) Phase 0 残り: Termux 実機検証（ユーザー協力要）と
+  配布形態 ADR（実測データ: cold build 9.3s・binary サイズ確認） (3) Phase 1: measure-*/es-lint 系を
+  Projection/Gate 原型へ (4) 消費者側シム採用は配布形態決定後。
+- **注意事項**: シムは GATECRATE_BIN → kit の target/{release,debug} → PATH の順で binary を解決。
+  未ビルドは exit 2（黙って skip しない）。es-render-html を consumed_scripts に持つ消費者は現状ゼロ
+  （localmd/cps-meta とも未採用）なので、シム化による消費者影響なし。
+
+---
+
+**前回: 公開前衛生監査（2026-07-20）**。全履歴と公開treeについてauthor email、既知のsecret形式、
 内部識別子を走査し問題なし。Android-JVM adapter配下の追跡済みGradle実行cache 7件を削除し、
 `**/.gradle/`のignoreと自己衛生テストを追加した。全46 behavior test、secret、POSIX、行数、構文ゲートは成功。
 ローカルにShellCheckがないため、ShellCheckはGitHub Actionsで確認する。

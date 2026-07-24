@@ -1,0 +1,9 @@
+[package]
+name = "gatecrate-model"
+description = "Types and readers for the living-model sources (.es / .cmap / .cld / .spec)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
