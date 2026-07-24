@@ -28,6 +28,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build the Rust implementation (shimmed scripts delegate to it)
+        # es-render-html.sh は crates/ の Rust 実装へ委譲するシム。挙動テストの前にビルドし、
+        # シムが確実に見つけられるよう GATECRATE_BIN を明示する。所要時間は配布形態の判断材料
+        # （docs/design/rust-port-plan.md の Phase 0 実測）なので time で記録する。
+        run: |
+          time cargo build --release --quiet
+          echo "GATECRATE_BIN=$GITHUB_WORKSPACE/target/release/gatecrate" >> "$GITHUB_ENV"
+
+      - name: Rust unit and gate tests (cargo test)
+        # ゲートは差し替え可能な証拠層で実 git なしに全経路を検査する（gatecrate-gates/tests/）。
+        run: cargo test --release --quiet
+
       - name: Shell syntax (sh -n)
         run: |
           fail=0
