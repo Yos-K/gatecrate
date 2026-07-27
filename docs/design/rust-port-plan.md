@@ -95,26 +95,30 @@ exec "$BIN" check adr-review "$@"
    - kit-drift のバージョン整合検査が素直に書けるか
 4. 決定は ADR として記録する（`check-adr-review` のドッグフード対象）。
 
-## 残留判定の基準（「本当にシェルが必要」の定義）
+## 移植境界の基準（[ADR-0002](../adr/0002-rust-port-boundary.md) で確定）
 
-プロセス起動そのものは Rust でも可能（`std::process::Command`）。よって「外部コマンドを呼ぶから sh」
-は理由にならない。残留は次のいずれかに該当するものだけ:
+境界は「ゲートか射影か」という層ではなく、**判定が構造を持つか**で引く（consumer 側エージェントの
+独立レビューで層基準の誤分類——パーサを持つゲート es-lint を凍結し、構造の薄い check-adr-review を
+移植する——が指摘され、基準を差し替えた）:
 
-1. **シェルであること自体が実行環境の契約**: git hooks（commit-msg 等）・CI の inline step・
-   installer（`install.sh` — ブートストラップは Rust 取得前に動く必要がある）・Claude Code hooks。
-2. **source される設定・シム**: `harness.config.sh`・シム自身。
-3. **移植 ROI が負の glue**: gradlew/adb/emulator を数行叩くだけのビルド/スモーク系
-   （adapters の build-*・emulator-smoke・capture-* 等）。ロジックがなく sh の事故面が小さい。
+- **Rust へ**: 判定にパーサ・グラフ探索・集合演算を含むもの。実務閾値は「**埋め込み awk が30行を
+  超えたら Rust を検討**」。2つの独立したエージェントが同クラスの sh 事故（変数展開・sed 不発の
+  偽結果・行指向パースの構造誤り）を踏んでおり、いずれも shellcheck -S error は検出しない。
+- **sh のまま（凍結でなく正解として）**: 正規表現1本・ファイル存在で終わる単純検査。cp 可搬性の
+  価値がコストを上回り、**probe-gate-liveness が「スクリプト単体を使い捨てリポへコピーして注入」する
+  前提とも互換**（シム化ゲートは単体コピーで動かない——binary 不在は exit 2 なので偽 ALIVE には
+  ならないが、probe の対象にはできない）。
+- **シェルであること自体が契約のもの**: git hooks・CI inline step・installer・source される設定・シム。
 
 初期分類（inventory の機械採取 + 上記基準。最終判定は各移植 PR で確定）:
 
 | 区分 | 本数目安 | 代表 |
 |---|---|---|
-| Rust へ（分析・コンパイラ層） | ~15 | es-render-html・es-lint(-info)・es-coverage・es-cmap-lint・measure-*4本・render-harness-dashboard・classify-gate-type・check-diff-coverage |
-| Rust へ（ゲート層） | ~30 | check-adr-review・check-interaction-*・check-file-line-limit・check-no-committed-secrets・check-doc-currency 等 |
-| Rust へ（二階ループ） | ~5 | probe-gate-liveness・collect-gate-history・gate-roi-verdict・check-kit-drift |
-| sh 残留（基準1,2） | ~10 | install.sh・フックテンプレ・シム・pr-preflight（CI 契約の入口） |
-| sh 残留（基準3・ROI 判断） | ~35 | adapters のビルド/エミュレータ/スクショ glue。**残留は永久指定ではない**（ROI が立てば移植可） |
+| Rust へ（構造判定: パーサ/グラフ/集合演算） | ~18 | es-lint(-info)・es-cmap-lint・check-es-evidence・es-coverage・measure-*4本・render-harness-dashboard・classify-gate-type・check-diff-coverage・collect-gate-history・gate-roi-verdict |
+| sh のまま（単純検査・probe 対象） | ~25 | check-conventional-title・check-no-committed-secrets・check-file-line-limit・check-hard-constraints・check-doc-currency 等 |
+| sh 残留（シェル自体が契約） | ~10 | install.sh・フックテンプレ・シム・pr-preflight（CI 契約の入口） |
+| sh 残留（ROI 判断の glue） | ~35 | adapters のビルド/エミュレータ/スクショ glue。**残留は永久指定ではない**（ROI が立てば移植可） |
+| 例外（原型検証で移植済みの2ゲート） | 2 | check-adr-review・check-interaction-traceability の Rust 版は**消費者向けでなく kit 自身の CI 用**。消費者は sh 版を使い続ける（二重実装は役割分離で管理・ADR-0002 参照） |
 
 ## テスト戦略（移植の正しさをどう保証するか）
 
@@ -130,9 +134,9 @@ exec "$BIN" check adr-review "$@"
 | Phase | 内容 | 完了の定義 |
 |---|---|---|
 | 0 | workspace/シム機構の骨格＋**パイロット: es-render-html**（最大痛点・not-a-gate で消費者 CI 無リスク）＋ Termux 検証＋**配布形態の決定（ADR 化）** | パイロットのゴールデン一致・配布形態 ADR 承認 |
-| 1 | 分析層（measure-*・es-coverage・dashboard・classify） | 各スクリプトの既存テスト green |
-| 2 | ゲート層（check-*） | 同上＋消費者1つで実走 |
-| 3 | 二階ループ＋残留最終判定＋シム最終化 | inventory 全行に Rust/sh-残留 の確定ラベル |
+| 1 | 構造判定をもつ射影・計測（measure-*・es-coverage・dashboard・classify） | 各スクリプトの既存テスト green |
+| 2 | 構造判定をもつゲート（es-lint 系・check-es-evidence・check-diff-coverage。**単純検査は移植しない** — ADR-0002） | 同上＋消費者1つで実走 |
+| 3 | 二階ループの集計系＋残留最終判定＋シム最終化 | inventory 全行に Rust/sh-残留 の確定ラベル |
 
 ## 未決定事項
 

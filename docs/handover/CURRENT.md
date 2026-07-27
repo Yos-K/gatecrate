@@ -6,7 +6,23 @@
 
 ## 現在の状態
 
-**最直近: Rust 移植 Phase 0 — 2原型の実装とパイロット統合（2026-07-22〜24・branch: feat/rust-port-phase0）**。
+**最直近: 移植境界の確定と ADR 運用の自己強制（2026-07-27・branch: docs/adr-0002-port-boundary）**。
+consumer 側エージェントの独立レビュー（「痛みは sh でなく構造データ×行指向ツール」「awk 30行閾値」
+「probe は単体コピー前提」）を受け、移植境界を「層」から「判定の構造性」へ差し替え:
+
+- **ADR-0002**（英日）: 構造判定（パーサ/グラフ/集合演算）= Rust／正規表現1本 = sh が正解（凍結でなく）／
+  awk 30行閾値／probe-gate-liveness 互換の制約／既存 Rust ゲート2本は kit 自身の CI 用という役割分離。
+- **計画書改訂**: Phase 2「ゲート層 ~30本」を廃止 → 構造判定をもつゲートのみ（es-lint 系・
+  check-es-evidence・check-diff-coverage）。単純検査 ~25本は「sh のまま」が確定ラベル。
+- **self-CI に Rust adr-review ゲートを配線**: feat/fix コミットに ADR-Review トレーラ必須
+  （AGENTS.md に規約追記・checkout は fetch-depth:0 に変更）。ADR-0001 はマージ済み（ソース配布第一）。
+- **次のアクション**: (1) 本ブランチ PR（PR 自身が新ゲートの初実走＝ドッグフード） (2) Phase 1 対象選定
+  （measure-coupling が第一候補: awk 6箇所・COUPLING_LANG 5言語分岐） (3) Termux 検証は継続して
+  ユーザー待ち (4) consumer 側エージェントへ ADR-0002 を還元（kit⇄consumer ループ）。
+
+---
+
+**前回: Rust 移植 Phase 0 — 2原型の実装とパイロット統合（2026-07-22〜24・branch: feat/rust-port-phase0）**。
 docs/design/rust-port-plan.md の実装着手。ユーザーレビューで「awk の逐語転写は抽象化でない」と棄却された
 初版を捨て、モデリングからやり直した経緯が重要:
 
