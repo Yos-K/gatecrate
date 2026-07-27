@@ -112,6 +112,19 @@ sh core/scripts/check-file-line-limit.sh
   業務用(企業内Git)のemail をグローバル既定にしている場合は、**公開リポごとに `git config user.email` で上書き**する。
 - 迷ったら**書かない／伏せる**側に倒す。
 
+## feat/fix コミットの ADR-Review トレーラ（必須・CI 強制）
+
+本リポは `docs/adr/` を持ち、**feat/fix コミットは `ADR-Review:` トレーラをちょうど1つ**持つこと
+（CI の adr-review ゲートがブロックする）。参照する ADR が無い変更は理由付き none を書く:
+
+```
+ADR-Review: docs/adr/0002-rust-port-boundary.md
+ADR-Review: none (<なぜ設計判断に触れないかの理由>)
+```
+
+参照 ADR は**そのコミット時点で**実在し英日ペア＋必須5節を持つこと（後から足して辻褄を合わせられない）。
+Rust/sh の移植境界に触れる変更は ADR-0002、配布形態に触れる変更は ADR-0001 を参照する。
+
 ## ドキュメント更新義務
 
 - コード/設計/構成を変更したら `docs/handover/CURRENT.md` をインクリメンタルに更新する。

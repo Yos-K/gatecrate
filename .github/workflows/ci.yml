@@ -27,6 +27,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # adr-review ゲートは「宣言コミット時点」の履歴を要するので浅い clone にしない
+          fetch-depth: 0
 
       - name: Build the Rust implementation (shimmed scripts delegate to it)
         # es-render-html.sh は crates/ の Rust 実装へ委譲するシム。挙動テストの前にビルドし、
@@ -39,6 +42,12 @@ jobs:
       - name: Rust unit and gate tests (cargo test)
         # ゲートは差し替え可能な証拠層で実 git なしに全経路を検査する（gatecrate-gates/tests/）。
         run: cargo test --release --quiet
+
+      - name: ADR review declared on every feat/fix commit (Rust gate dogfood)
+        # docs/adr/ を持つ本リポ自身に ADR-0001/0002 の運用を強制する。消費者向けは sh 版
+        # （core/scripts/check-adr-review.sh）のままで、Rust 版は kit 自身の CI が使う（ADR-0002 の役割分離）。
+        if: github.event_name == 'pull_request'
+        run: ./target/release/gatecrate check adr-review "${{ github.event.pull_request.base.sha }}"
 
       - name: Shell syntax (sh -n)
         run: |
