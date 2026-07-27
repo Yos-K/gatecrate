@@ -46,7 +46,11 @@ ROOT="$(git -C "$(dirname -- "$0")" rev-parse --show-toplevel 2>/dev/null \
 OUT="${MODULARITY_OUT_DIR:-$ROOT/build/quality}"
 mkdir -p "$OUT"
 STRICT=0
-[ "${1:-}" = "--strict" ] && STRICT=1
+EMIT_QUEUE=0
+case "${1:-}" in
+  --strict)     STRICT=1 ;;
+  --emit-queue) EMIT_QUEUE=1 ;;
+esac
 
 STRENGTH_FILE="${MODULARITY_STRENGTH_FILE:-$ROOT/modularity-strength.tsv}"
 DEFAULT_LEVEL="${MODULARITY_DEFAULT_LEVEL:-model}"
@@ -127,9 +131,22 @@ if [ "$rc" -ne 0 ]; then
   exit 2
 fi
 
+# --emit-queue: 未分類エッジを「分類作業のキュー」として CSV で出す。
+# なぜ CSV か: TAKT の arpeggio(data-driven batch)の組み込みデータソースは CSV 固定
+# （区切りは ',' ・ヘッダ行必須）で、TSV のままでは列を分解できない。分類は1エッジずつ
+# src を読んで判断する作業＝収束ループでなくバッチ処理が適合するため、その入力を用意する。
+# 分類そのものは機械化しない（本スクリプト冒頭のとおり意味論的判断であり計測できない）。
 TAB="$(printf '\t')"
 sort -t"$TAB" -k7,7nr "$OUT/modularity-all.tsv" > "$OUT/modularity-all.sorted.tsv" \
   && mv "$OUT/modularity-all.sorted.tsv" "$OUT/modularity-all.tsv"
+if [ "$EMIT_QUEUE" -eq 1 ]; then
+  {
+    echo "src,dst,imports,level,dist,vol,load,verdict"
+    awk -F"$TAB" '$9 == "no" { printf "%s,%s,%s,%s,%s,%s,%s,%s\n", $1,$2,$3,$4,$5,$6,$7,$8 }' \
+      "$OUT/modularity-all.tsv"
+  } > "$OUT/modularity-queue.csv"
+  echo "modularity: work queue -> $OUT/modularity-queue.csv ($(( $(wc -l < "$OUT/modularity-queue.csv") - 1 )) unclassified edge(s))"
+fi
 awk -F'\t' -v OFS='\t' '$8 == "RED" { print $1, $2, $3, $4, $5, $6, $7 }' \
   "$OUT/modularity-all.tsv" > "$OUT/modularity-red.tsv"
 

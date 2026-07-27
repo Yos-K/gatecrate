@@ -1,0 +1,90 @@
+# TAKT workflow — converge an Alloy spec model (.als) until every guarantee holds as expected.
+#
+# WHY: check-domain-model.sh calls itself "the executable exit of the domain learning loop", but the
+# loop itself was never expressed. harness-rule-reflect SCAFFOLDS an assert (specify -> reflect, a
+# sequence, explicitly NOT converge-to-green); after that, the counterexample-driven refinement —
+# run the checker, read the counterexample, decide whether the MODEL or the SPEC is wrong, fix,
+# re-run — lived only in the alloy-spec-model-generator skill's prose, as an implicit phase. That is
+# loop discipline in the judgment layer, which is exactly what this kit exists to move out of it.
+#
+# Shape: a converge loop (check -> refine) guarded by a `type: command` quality gate. The gate is the
+# authority (exit code); the judgment — "is the model wrong, or is the guarantee genuinely not meant
+# to hold?" — is the persona's. TAKT only sequences and enforces.
+#
+# SCOPE — what must NOT be converged (the structural risk this loop carries):
+#   An assert that fails can always be made green by declaring the counterexample intentional
+#   (`expect 0` -> `expect 1`). Under converge-to-green pressure an agent WILL reach for that: it is
+#   the cheapest way to satisfy the gate, and it looks like a legitimate modelling decision. That is
+#   the characterization trap in Alloy form — freezing a regression as spec.
+#   The fix is deterministic, not a persona rule (the exp3 finding: a prompt guard loses to loop
+#   pressure): check-intended-counterexample.sh REJECTS any `expect N>0` that carries no
+#   `intended: <why>` reason. The loop therefore CANNOT silently downgrade a guarantee — declaring
+#   intent is allowed (it is a real modelling outcome) but it must be written down, and the written
+#   reason lands in the diff where a human reviews it.
+#   Both gates run together below, so "made it green by giving up" fails the gate as loudly as
+#   "left it red".
+#
+# Prerequisites: scripts/check-domain-model.sh and scripts/check-intended-counterexample.sh adopted;
+#   docs/domain/models/*.als present; java + the Alloy jar available (the checker SKIPs without them,
+#   which would make this loop a no-op — run it where the toolchain exists).
+# Requires in the consumer's .takt/config.yaml:  workflow_command_gates: { custom_scripts: true }
+#
+# Usage: takt -w spec-model-converge -t "converge docs/domain/models/<name>.als"
+name: spec-model-converge
+description: >
+  Converge an Alloy .als model until check-domain-model reports every guarantee holding as expected,
+  deciding per counterexample whether the model or the spec is wrong. Giving up a guarantee is
+  allowed only with a written reason (check-intended-counterexample enforces it); the loop never
+  silently downgrades an assert.
+max_steps: 20
+initial_step: refine
+
+steps:
+  - name: refine
+    persona: spec-author
+    edit: true
+    instruction: |
+      Goal: make `sh scripts/check-domain-model.sh` exit 0 — every `check ... expect N` in the model
+      resolves as declared — WITHOUT giving up a guarantee to buy green. The quality gate runs the
+      checker (and the intent gate) for you after each turn; do not run them yourself. When it fails
+      you receive the exit code and stdout, including the counterexample trace directory. Read it and
+      act:
+
+      - A FAIL on `expect 0` means Alloy found a counterexample to a guarantee you declared should
+        hold. Exactly one of three things is true, and you must decide WHICH before editing:
+          (a) THE MODEL IS WRONG — the .als does not faithfully encode the rule (a missing fact, a
+              too-loose signature, a wrong quantifier). Fix the model. This is the common case.
+          (b) THE SPEC IS WRONG — the rule as written is not what the domain means. Do NOT patch the
+              model to hide it: this is an upstream finding. ABORT and report it, so a human decides
+              (changing what the system is supposed to do is not a modelling task).
+          (c) THE GAP IS DELIBERATE — the property genuinely must not hold (a fail-closed mapping is
+              intentionally non-injective, say). Then change it to `expect 1` AND write the reason:
+                  check FooIsInjective for 5 expect 1  // intended: <why this gap is deliberate>
+              The reason is mandatory; check-intended-counterexample rejects an undocumented one.
+      - A FAIL on `expect 1` means an intended gap CLOSED — the counterexample disappeared. That is
+        usually good news (the design tightened), but it is still a spec change: restore `expect 0`
+        only if the guarantee is now genuinely meant to hold, and say so in the commit.
+      - NEVER delete an assert, narrow its scope, or drop a model from the path to make the gate
+        pass. That defeats the checker rather than satisfying it.
+
+      One change per turn, so each checker result maps to one cause. Read the fed-back output
+      literally — it names the failing model and assert; do not guess. When the gate exits 0, finalize.
+    quality_gates:
+      - type: command
+        name: domain-model-gate
+        command: "sh scripts/check-domain-model.sh"
+      # Runs alongside, not after: it is what makes "buy green by declaring intent" cost the same as
+      # leaving the assert red. Without it the loop has a free escape hatch.
+      - type: command
+        name: intended-counterexample-gate
+        command: "sh scripts/check-intended-counterexample.sh"
+    rules:
+      - condition: The checker exits 0 and no guarantee was given up without a written reason
+        next: COMPLETE
+      - condition: A counterexample shows the RULE ITSELF is wrong (an upstream finding, not a modelling error)
+        next: ABORT
+        appendix: |
+          Upstream finding — a human decides (this is a spec change, not a model fix):
+          - model / assert: {which .als and which check}
+          - the counterexample: {what Alloy found}
+          - why the rule, not the model, looks wrong: {reasoning}

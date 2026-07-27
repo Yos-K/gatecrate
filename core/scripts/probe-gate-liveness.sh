@@ -169,6 +169,14 @@ inject_modularity() {
   printf 'probe.src.pkg\tprobe.far.volatile\t3\tintrusive\t4\t12\t192\n' > "$1/probe-red.tsv"
 }
 
+# inject_intended_counterexample <workdir>: an .als whose `expect 1` (an intended counterexample)
+# carries NO documented reason, so the gate must reject it. This is the exact shape a converge loop
+# would produce to make a failing assert green — "declare it intentional" without saying why.
+inject_intended_counterexample() {
+  mkdir -p "$1/docs/domain/models"
+  printf 'module probe\ncheck ProbeIsInjective for 5 expect 1\n' > "$1/docs/domain/models/probe.als"
+}
+
 # run_gate <workdir> <gate_basename> <kind>: execute the copied gate against the
 # injected violation and return the gate's own exit code.
 run_gate() {
@@ -186,6 +194,7 @@ run_gate() {
     release-version)  ( cd "$wd" && sh "scripts/$base" ) ;;
     third-party)      ( cd "$wd" && TPN_BUNDLED_ASSET=probe-asset.js TPN_REQUIRED_STRINGS=ProbeNotice sh "scripts/$base" ) ;;
     modularity)       ( cd "$wd" && MODULARITY_RED_FILE="$wd/probe-red.tsv" MODULARITY_BASELINE_FILE="$wd/probe-baseline.tsv" sh "scripts/$base" ) ;;
+    intended-counterexample) ( cd "$wd" && sh "scripts/$base" ) ;;
     *) echo "probe: unknown kind: $kind" >&2; return 2 ;;
   esac
 }
@@ -210,7 +219,7 @@ is_escalation_only() {
 probe_gate() {
   gate="$1"; kind="$2"
   case "$kind" in
-    title|secrets|filesize|hard-constraints|posix|escalation|doc-currency|rule-doc|merge-integrity|release-version|third-party|modularity) ;;
+    title|secrets|filesize|hard-constraints|posix|escalation|doc-currency|rule-doc|merge-integrity|release-version|third-party|modularity|intended-counterexample) ;;
     *) echo "probe: invalid kind '$kind' for $gate — see header for the injectable classes (check PROBE_GATES)" >&2
        return 2 ;;
   esac
@@ -234,6 +243,7 @@ probe_gate() {
     release-version)  inject_release "$wd" "$gatedir" || irc=$? ;;
     third-party)      inject_thirdparty "$wd" ;;
     modularity)       inject_modularity "$wd" ;;
+    intended-counterexample) inject_intended_counterexample "$wd" ;;
     title)            : ;;  # injected via argv inside run_gate
   esac
   if [ "$irc" -eq 3 ]; then
@@ -274,7 +284,8 @@ check-file-line-limit.sh:filesize check-hard-constraints.sh:hard-constraints
 check-posix-portability.sh:posix check-mutation-escalation.sh:escalation
 check-doc-currency.sh:doc-currency check-rule-doc-currency.sh:rule-doc
 check-merge-integrity.sh:merge-integrity check-release-version-name.sh:release-version
-check-third-party-notices.sh:third-party check-modularity-ratchet.sh:modularity"
+check-third-party-notices.sh:third-party check-modularity-ratchet.sh:modularity
+check-intended-counterexample.sh:intended-counterexample"
 
 # ---- list mode: emit the prevention(reject-type) registry, one gate base per line ----
 # Single source of truth for "which gates are prevention-type". classify-gate-type.sh consumes this
@@ -345,7 +356,8 @@ core/scripts/check-rule-doc-currency.sh:rule-doc
 core/scripts/check-merge-integrity.sh:merge-integrity
 core/scripts/check-release-version-name.sh:release-version
 core/scripts/check-third-party-notices.sh:third-party
-core/scripts/check-modularity-ratchet.sh:modularity"
+core/scripts/check-modularity-ratchet.sh:modularity
+core/scripts/check-intended-counterexample.sh:intended-counterexample"
   echo "Gate liveness probe — survival proof of prevention gates:"
 fi
 
