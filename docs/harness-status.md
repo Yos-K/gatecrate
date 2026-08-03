@@ -37,9 +37,9 @@ pie showData
 ```mermaid
 xychart-beta
     title "Total gates over time"
-    x-axis ["06-20", "07-02", "08-03"]
+    x-axis ["07-23", "07-24", "07-25", "07-26", "07-27", "07-28", "07-29", "07-30", "07-31", "08-01", "08-02", "08-03"]
     y-axis "gates" 0 --> 40
-    line [18, 34, 38]
+    line [37, 37, 37, 37, 37, 37, 37, 37, 37, 37, 37, 38]
 ```
 
 | Gate | Type | Liveness | ROI verdict | Next action |
