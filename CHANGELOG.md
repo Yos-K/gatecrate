@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`posix-sh` アダプタ（`sync-manifests/posix-sh.yaml` ＋ `adapters/posix-sh/scripts/`）**:
+  既存8アダプタは全て**言語スタック**向け（テストランナ＋カバレッジ＋変異ツール）だが、
+  アプリケーションコードを持たない消費者——POSIX sh と型付きモデル/仕様ファイルで構成され、
+  組織・仕様・ドキュメントの層を回すリポジトリ——はどれにも該当せず、sync 機構に乗れないまま
+  独自の配線を再実装する羽目になっていた。本アダプタはその形に他と同じ入口を与える。
+  - `run-tests.sh`: `tests/test-*.sh` を1本ずつ独立プロセスで回す。**発見ゼロを緑にしない**
+    （グロブ不一致やディレクトリ移動でテストが無言に蒸発するのを失敗として扱う）。
+  - `run-mutation.sh`: **シェルの変異テスト**。cargo-mutants / stryker / mutmut に相当するものが
+    POSIX sh には存在せず、「最も価値のある実践が唯一機械化されていない」状態が残っていた。
+    ゲートの判定を無力化する方向の変異（`exit 1`→`exit 0`、条件の固定、境界比較の緩和 等）を注入し、
+    挙動テストが検出できるかを測る。`mutation-scope.sh` の diff/full 契約に従う。
+    **中心的な不変条件は「変異が実際に適用されたことを確認してからテストを回す」**——実測で、
+    手作業による26体の変異のうち2体は sed が空振りして「生存」と偽報告していた（適用されていない
+    変異は結果を変えないためテストの穴に見え、結論が逆向きに出る）。適用されなかった変異は SKIP
+    として報告し生存に数えない。サマリは `killed=N survived=N skipped=N` で機械可読。
+    挙動テストは run-mutation 15性質・run-tests 11性質（不変条件・原状復帰・グロブ0件の失敗を固定）。
+
 ### Changed
 - **ADR 運用を自リポに強制（ドッグフード）**: feat/fix コミットに `ADR-Review:` トレーラを CI で必須化
   （Rust 版 adr-review ゲートを self-CI に配線。消費者向けは従来どおり sh 版——役割分離は ADR-0002）。
