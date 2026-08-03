@@ -15,6 +15,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/adr/` を新設。
 
 ### Added
+- **Alloy 収束ループと意図反例ゲート（TAKT `spec-model-converge` ＋ `check-intended-counterexample.sh`）**:
+  `check-domain-model.sh` は自らを「ドメイン学習ループの実行可能な出口」と定義しているが、ループ自体は
+  未表現だった（`harness-rule-reflect` は assert を scaffold するだけで converge-to-green ではない）。
+  反例駆動の反復——検査→反例を読む→**モデルの誤りか仕様の誤りか**を判断→修正→再検査——は
+  alloy-spec-model-generator スキルの散文に暗黙化していた＝ループ規律が判断層にあった。
+  収束させる際の構造的リスクは「`expect 0` → `expect 1` と宣言すれば必ず緑にできる」こと（最も安い
+  逃げ道でありモデリング判断に見える＝characterization trap の Alloy 版）。exp3 の知見どおり persona
+  ルールでは抑えられないため防御は決定論に置いた——新ゲートが理由（`intended: <why>`）のない
+  `expect N>0` を reject する。**宣言を禁じるのではなく理由を強制する**（本リポの
+  `ADR-Review: none (<reason>)` と同型）。両ゲートを同一ステップの quality gate に並べ、
+  「諦めて緑」が「赤のまま」と同じ強さで落ちるようにした。挙動テスト10性質・REJECT_GATES へ注入器
+  つきで登録（生存証明あり）・全 sync-manifest に配布登録。
+- **modularity 分類のバッチ処理（TAKT `modularity-classify-batch` ＋ `measure-modularity.sh --emit-queue`）**:
+  modularity-review の完了条件は機械判定可能だが、作業の実体は収束でなく**分類**（各エッジの src を
+  読んで共有知識量を判定する）であり、行ごとに「緑にする」対象が無い。よって converge ではなく
+  arpeggio（data-driven batch）で回す。TAKT の組み込みデータソースは CSV 固定（区切り `,`・ヘッダ必須）
+  で TSV を列分解できないため、未分類エッジを `build/quality/modularity-queue.csv` に出す
+  `--emit-queue` を追加（挙動テスト2性質）。ワークフローは分類の正しさを検証せず（スキル自身が
+  機械検証不能と明記）、baseline も触らない。`concurrency` を上げる前の警告を明記——「迷ったら強い側に
+  倒す」は判断層の規律で、1エッジあたりの文脈が薄くなると守られにくく、**弱い誤分類の方向が高くつく**
+  （RED を取り逃がしゲートが黙る）。
 - **Rust 移植 Phase 0（#rust-port・docs/design/rust-port-plan.md の実装着手）**: ハーネスの2原型を型として実装。
   **Gate 原型** = `gatecrate-harness`（intent/population/criterion/coherence/evidence/finding/report の層。
   「検査不成立(exit 2)」と「違反0」を型で分離し、設定ミスが緑に化ける経路を構造で排除）＋

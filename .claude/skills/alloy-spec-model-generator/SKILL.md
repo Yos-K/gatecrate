@@ -164,6 +164,32 @@ CI設定管理者に確認してから追加すること。
 
 `"billing_unavailable"` のようなコードは一見「未知コード」に見えるが、`fromPersistenceCode()` に明示的な分岐があり既定状態に倒れないことがある。必ずコードを直接確認すること（推測禁止）。
 
+## 収束ループ（Phase 3 の反復を機械に統率させる）
+
+Phase 3 の形式化は**反例駆動の反復**である——書く → `check-domain-model.sh` → 反例を読む →
+モデルか仕様のどちらが誤りか判断 → 直す → 再検査。この反復は長らく暗黙だった
+（本スキルは Phase 3 を単一工程として書いていた＝ループ規範が判断層にすら無い状態）。
+
+TAKT ワークフロー `spec-model-converge` がこれを統率する:
+
+```sh
+takt -w spec-model-converge -t "converge docs/domain/models/<name>.als"
+```
+
+**緑にしてはいけないものがある**。反例の出たアサートは `expect 0` → `expect 1` と書き換えれば
+必ず緑にできる——収束圧の下ではこれが最も安い逃げ道であり、しかも正当なモデリング判断に見える。
+これは characterization trap（バグを仕様として凍結する罠）の Alloy 版である。
+
+防御はプロンプトでなく決定論に置いた: **`check-intended-counterexample.sh` が
+理由（`intended: <why>`）のない `expect N>0` を reject する**。意図の宣言は禁止しないが、
+書かせる。書かれた理由は差分に残り、人間のレビューに乗る。
+
+| 反例が出たとき | 判断 | 行動 |
+|---|---|---|
+| モデルが仕様を正しく写していない | (a) モデルの誤り | モデルを直す（最頻） |
+| 規則そのものが業務と違う | (b) 仕様の誤り | **上流の発見**。直さず人間へ返す（ABORT） |
+| その性質は成り立たなくてよい | (c) 意図的なギャップ | `expect 1` ＋ `// intended: <理由>` |
+
 ## バリデーション
 
 ```sh
@@ -174,7 +200,8 @@ sh scripts/check-domain-model.sh
 sh scripts/check-domain-model.sh docs/domain/models/<name>.als
 ```
 
-全 assert が `expect 0`（または意図した `expect 1`）で PASS したら完了。
+全 assert が `expect 0`（または**理由を明記した** `expect 1`）で PASS したら完了。
+`sh scripts/check-intended-counterexample.sh` も緑であること（理由なき意図宣言を弾く）。
 
 **ネットワーク制限環境の注意**: Alloy jar の自動ダウンロードが失敗する場合がある。
 その場合は `ALLOY_HOME` 環境変数で手動配置した jar のパスを指定する。

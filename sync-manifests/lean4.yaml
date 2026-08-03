@@ -53,5 +53,6 @@ sync_target:
     - core/scripts/check-test-compiles.sh
     - core/scripts/check-posix-portability.sh
     - core/scripts/check-domain-model.sh
+    - core/scripts/check-intended-counterexample.sh
   adapter_scripts:
     - adapters/lean4/scripts/run-tests.sh

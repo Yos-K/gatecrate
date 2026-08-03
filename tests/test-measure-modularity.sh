@@ -106,5 +106,27 @@ run_m "$D/e9" ""
 [ "$RC" -eq 0 ] && pass "zero edges -> exit 0" || fail "expected 0, got $RC: $OUT"
 printf '%s\n' "$OUT" | grep -qi 'no .*edge' && pass "explains nothing to assess" || fail "no explanation: $OUT"
 
+# --- --emit-queue: 未分類エッジを分類作業のキューとして CSV で出す ---
+# なぜ CSV か: TAKT の arpeggio(data-driven batch)の組み込みデータソースは CSV 固定
+# （区切りは ',' ・ヘッダ行必須）。分類は1エッジずつ src を読んで判断する作業なので、
+# 収束ループでなくバッチ処理が適合する。TSV のままでは arpeggio が列を分解できない。
+echo "property 10: --emit-queue writes a CSV work queue of UNCLASSIFIED edges only"
+printf 'com.ex.order.core\tcom.ex.billing.gw\tsrc/A.java\ncom.ex.a.core\tcom.ex.a.util\tsrc/B.java\n' > "$D/e10"
+printf 'com.ex.a.core\tcom.ex.a.util\tmodel\tshares a data shape (src/B.java:8)\n' > "$D/s10"
+run_m "$D/e10" "$D/s10" --emit-queue
+[ "$RC" -eq 0 ] && pass "--emit-queue -> exit 0" || fail "expected 0, got $RC: $OUT"
+Q="$D/out/modularity-queue.csv"
+[ -f "$Q" ] && pass "writes modularity-queue.csv" || fail "queue file missing"
+head -1 "$Q" | grep -q '^src,dst,' && pass "has a CSV header row (arpeggio requires one)" || fail "no header: $(head -1 "$Q")"
+grep -q 'com.ex.order.core,com.ex.billing.gw' "$Q" && pass "includes the unclassified edge" || fail "unclassified edge missing: $(cat "$Q")"
+grep -q 'com.ex.a.core,com.ex.a.util' "$Q" && fail "already-classified edge leaked into the queue: $(cat "$Q")" || pass "excludes the classified edge"
+grep -q "$(printf '\t')" "$Q" && fail "queue still contains tabs (arpeggio parses commas only)" || pass "tab-free (comma separated)"
+
+echo "property 11: --emit-queue with nothing unclassified writes a header-only queue"
+printf 'com.ex.a.core\tcom.ex.a.util\tsrc/B.java\n' > "$D/e11"
+run_m "$D/e11" "$D/s10" --emit-queue
+[ "$RC" -eq 0 ] && pass "all classified -> exit 0" || fail "expected 0, got $RC: $OUT"
+[ "$(wc -l < "$D/out/modularity-queue.csv" | tr -d ' ')" -eq 1 ] && pass "header only (no phantom rows)" || fail "unexpected rows: $(cat "$D/out/modularity-queue.csv")"
+
 echo "---- test-measure-modularity: PASS=$PASS FAIL=$FAIL ----"
 [ "$FAIL" -eq 0 ]

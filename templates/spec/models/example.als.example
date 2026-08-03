@@ -55,8 +55,12 @@ assert ItemStateIsAlwaysWellFormed {        // R-1
 check ItemStateIsAlwaysWellFormed for 5 expect 0
 
 // ---- (Optional) An INTENDED counterexample: `expect 1` documents a deliberate gap ----
+// The reason is MANDATORY (check-intended-counterexample enforces it). Turning `expect 0` into
+// `expect 1` gives up a guarantee; letting that through unexplained lets a converge-to-green loop
+// pass off a rule regression as "design intent". Put `intended: <why>` on the same line or the
+// line above.
 // Use this to assert that a property does NOT hold by design (e.g. a deliberately non-injective
 // fail-safe mapping). It documents intent so a reviewer does not "fix" it. Delete if unused.
 //
 // assert SomethingThatShouldNotHold { ... }
-// check SomethingThatShouldNotHold for 5 expect 1
+// check SomethingThatShouldNotHold for 5 expect 1  // intended: <why this gap is deliberate>

@@ -36,6 +36,14 @@ metadata:
 
 ### 1. 計測を回し、作業キューを得る
 
+> **バッチで回す場合**: `sh scripts/measure-modularity.sh --emit-queue` が未分類エッジを
+> `build/quality/modularity-queue.csv` に出す。TAKT ワークフロー `modularity-classify-batch` が
+> これを arpeggio(data-driven batch)で1行ずつ処理する——分類は**収束ループでなくキュー消化**なので、
+> converge-to-green でなく batch が適合する。
+> **concurrency を上げる前に読むこと**: 「迷ったら強い側に倒す」は判断層の規律であり、1エッジあたりの
+> 文脈が薄くなると守られにくくなる。**弱く誤分類する方向が高くつく**（RED を取り逃がしゲートが黙る）。
+> 小さく始め、最初のバッチを人手で確認し、誤分類率を測ってから上げる。
+
 ```sh
 sh scripts/measure-modularity.sh   # 消費側。kit 自身なら core/scripts/
 ```
