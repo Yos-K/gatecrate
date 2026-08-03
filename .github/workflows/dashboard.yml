@@ -9,9 +9,11 @@
 # 差分が消えた場合（main 側が追いついた等）は open PR をクローズしてブランチを消す。
 #
 # CI トリガー: GITHUB_TOKEN が作る push/PR には CI が走らない（GitHub の再帰防止仕様。旧方式の PR が
-# マージされず滞留した一因）。リポの secret DASHBOARD_PAT（fine-grained PAT: contents+pull-requests write）
-# を置くとそちらを使い、bot PR にも CI が自動で付く。無い場合は従来どおり GITHUB_TOKEN で動き、
-# マージ前に `gh workflow run ci --ref chore/dashboard-refresh` を手動で1回叩く運用になる。
+# マージされず滞留した一因）。push は deploy key（secret DASHBOARD_DEPLOY_KEY・このリポ限定の write）で
+# 行うため CI が普通にトリガーされる。PR の opened イベントだけは bot 作成のため CI が付かないので、
+# 作成直後に amend + force-push して synchronize イベントで checks を確実に付ける。
+# deploy key を無効化したい場合: リポ Settings > Deploy keys から削除 + secret を削除（その場合は
+# マージ前に `gh workflow run ci --ref chore/dashboard-refresh` を手動で叩く運用に戻る）。
 name: Dashboard
 
 on:
@@ -41,7 +43,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.DASHBOARD_PAT || github.token }}
+          # deploy key で checkout/push する（remote が SSH になり、push が CI をトリガーできる）
+          ssh-key: ${{ secrets.DASHBOARD_DEPLOY_KEY }}
 
       - name: Record a history point (only when the counts change) and regenerate
         run: |
@@ -57,7 +60,7 @@ jobs:
 
       - name: Update the single refresh PR (create / force-update / close)
         env:
-          GH_TOKEN: ${{ secrets.DASHBOARD_PAT || github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           open_pr="$(gh pr list --head "$REFRESH_BRANCH" --state open --json number --jq '.[0].number // empty')"
           if git diff --quiet -- docs/harness-status.md docs/harness-history.tsv; then
@@ -79,6 +82,9 @@ jobs:
             gh pr create --base main --head "$REFRESH_BRANCH" \
               --title 'chore: refresh harness dashboard snapshot' \
               --body 'Automated refresh of docs/harness-status.md (gate type/liveness changed). Single rolling PR maintained by .github/workflows/dashboard.yml — later runs force-update this branch instead of opening new PRs. Review and merge.'
+            # opened イベント（bot 作成）には CI が付かないため、deploy key で synchronize を発火させる
+            git commit --amend --no-edit
+            git push -f origin "$REFRESH_BRANCH"
           else
             echo "updated existing PR #$open_pr"
           fi
