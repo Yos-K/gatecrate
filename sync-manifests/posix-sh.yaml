@@ -1,0 +1,58 @@
+# sync-manifests/posix-sh.yaml — whitelist for the POSIX sh stack.
+#
+# WHY this adapter exists: the other eight adapters all target a LANGUAGE stack (test runner +
+# coverage + a mutation tool). Some consumers have no application code at all — repositories whose
+# content is POSIX sh plus typed model/spec files, driving an organisation, a specification layer,
+# or documentation. They consume the stack-independent core gates but have no pytest/cargo/stryker
+# to point at, so none of the eight fits them and they end up re-implementing the sync plumbing.
+#
+# What the adapter supplies: run-tests.sh (loop the tests/*.sh behavior tests) and run-mutation.sh
+# (mutate the shell scripts and check the behavior tests detect it — there is no cargo-mutants
+# equivalent for POSIX sh).
+#
+# Project-specific config (harness.config.sh, build manifests) is never included.
+sync_target:
+  adapter: posix-sh
+  core_scripts:
+    - core/scripts/check-conventional-title.sh
+    - core/scripts/check-no-committed-secrets.sh
+    - core/scripts/check-file-line-limit.sh
+    - core/scripts/check-posix-portability.sh
+    - core/scripts/probe-gate-liveness.sh
+    - core/scripts/collect-gate-history.sh
+    - core/scripts/render-harness-dashboard.sh
+    - core/scripts/classify-gate-type.sh
+    - core/scripts/gate-roi-verdict.sh
+    - core/scripts/check-gate-tests.sh
+    - core/scripts/check-doc-currency.sh
+    - core/scripts/check-rule-doc-currency.sh
+    - core/scripts/check-kit-drift.sh
+    - core/scripts/check-merge-integrity.sh
+    - core/scripts/check-adr-review.sh
+    - core/scripts/check-hard-constraints.sh
+    - core/scripts/check-third-party-notices.sh
+    - core/scripts/check-release-version-name.sh
+    - core/scripts/mutation-scope.sh
+    - core/scripts/pr-preflight.sh
+    - core/scripts/setup-branch-protection.sh
+
+    # Model / specification layer — the reason a code-less repository adopts this kit at all.
+    - core/scripts/es-lint.sh
+    - core/scripts/es-render.sh
+    - core/scripts/es-lint-info.sh
+    - core/scripts/es-cmap-lint.sh
+    - core/scripts/es-coverage.sh
+    - core/scripts/es-render-html.sh
+    - core/scripts/es-render-cmap-html.sh
+    - core/scripts/check-es-evidence.sh
+    - core/scripts/check-es-assertions.sh
+    - core/scripts/check-es-deliverables.sh
+    - core/scripts/check-evidence-resolves.sh
+    - core/scripts/check-jargon.sh
+    - core/scripts/check-model-refuted.sh
+    - core/scripts/check-domain-model.sh
+    - core/scripts/check-intended-counterexample.sh
+    - core/scripts/probe-semantic-liveness.sh
+  adapter_scripts:
+    - adapters/posix-sh/scripts/run-tests.sh
+    - adapters/posix-sh/scripts/run-mutation.sh
