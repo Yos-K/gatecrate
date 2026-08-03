@@ -1,0 +1,105 @@
+# TAKT workflow — drain the Integration Strength classification queue (data-driven batch).
+#
+# WHY: modularity-review's completion condition is machine-checkable (unclassified = 0, ratchet
+# exit 0, every row carries evidence), but the work itself is NOT a converge-to-green loop — it is
+# CLASSIFICATION: read the src side of each edge and judge how much knowledge it shares. The skill
+# carried that as prose ("classify each unclassified edge, then re-measure"), i.e. the iteration
+# discipline sat in the judgment layer.
+#
+# Shape: `arpeggio` (data-driven batch), not a converge loop. Each queue row is one independent unit
+# of judgment; there is nothing to "make green" per row. measure-modularity.sh --emit-queue writes
+# the queue as CSV because arpeggio's built-in data source is CSV (comma-separated, header row
+# required) — the native TSV cannot be column-split by it.
+#
+# SCOPE — what this workflow does NOT do:
+#   - It does not verify the classifications. The skill is explicit that "the correctness of a
+#     classification cannot be machine-verified (the ratchet trusts it)". Defence is threefold and
+#     stays human/agent-side: evidence mandatory, err toward the STRONGER level, human review.
+#   - It does not touch the baseline. Freezing debt (`--emit-baseline`) and tightening the ratchet
+#     are human decisions.
+#
+# CONCURRENCY WARNING (read before raising it): the skill's discipline "when in doubt, err toward
+# the stronger level" is a judgment-layer rule, and judgment thins as per-item context shrinks.
+# Raising `concurrency` gives each edge less room, so misclassification is the expected failure mode
+# — and a WEAK misclassification is the costly direction (it drops a RED and the gate goes quiet).
+# Start small, review the first batch by hand, and raise it only against a measured error rate.
+#
+# Prerequisites: scripts/measure-modularity.sh and scripts/check-modularity-ratchet.sh adopted;
+#   a first `sh scripts/measure-modularity.sh --emit-queue` run to produce the queue.
+# Requires in the consumer's .takt/config.yaml:  workflow_command_gates: { custom_scripts: true }
+#
+# Usage:
+#   sh scripts/measure-modularity.sh --emit-queue
+#   takt -w modularity-classify-batch -t "classify the modularity queue"
+name: modularity-classify-batch
+description: >
+  Classify each unclassified package edge's Integration Strength with evidence, in batches over the
+  CSV work queue, then re-measure and report how the RED set moved. Does not verify classifications
+  and does not touch the ratchet baseline (both are human-side).
+max_steps: 10
+initial_step: classify
+
+steps:
+  # 1) One judgment per queue row. Small batches on purpose — see the concurrency warning above.
+  - name: classify
+    persona: architecture-reviewer
+    edit: true
+    arpeggio:
+      source: csv
+      source_path: build/quality/modularity-queue.csv
+      batch_size: 5
+      concurrency: 1
+      template: |
+        Classify the Integration Strength of this package edge and append one row to
+        modularity-strength.tsv.
+
+          src: {{src}}    dst: {{dst}}    imports: {{imports}}
+          current verdict: {{verdict}}  (distance {{dist}}, volatility {{vol}}, load {{load}})
+
+        READ THE SRC SIDE FIRST. The level is decided by HOW MUCH KNOWLEDGE is shared, never by the
+        number of imports (that is width, not depth):
+
+          intrusive  — reaches into the other side's internals (private state, DB tables, reflection)
+          functional — depends on its business rules / algorithms
+          model      — shares a data shape (DTO, schema, enum)
+          contract   — depends only on a published, deliberately stable interface
+
+        Rules that are not negotiable:
+          - EVIDENCE IS MANDATORY: cite file:line for what you read. A row without evidence is not a
+            classification, it is a guess.
+          - WHEN IN DOUBT, ERR TOWARD THE STRONGER LEVEL. Misclassifying weak drops a RED edge and
+            the gate goes quiet (a false negative in a prevention gate is the expensive direction);
+            misclassifying strong only costs an advisory report and a human correction.
+          - Do not edit the baseline, the ratchet, or the measurement scripts.
+    rules:
+      - condition: Every row in the batch was classified with evidence appended
+        next: remeasure
+      - condition: An edge cannot be classified from the code (it needs a human/architectural decision)
+        next: ABORT
+        appendix: |
+          Needs a human decision — classification is not derivable from the code alone:
+          - edge: {src -> dst}
+          - what was read: {file:line}
+          - why it is undecidable: {reasoning}
+
+  # 2) Re-measure and report how the RED set moved. Reclassification changes verdicts, so a silent
+  #    "done" would hide a newly-created RED.
+  - name: remeasure
+    persona: architecture-reviewer
+    edit: false
+    instruction: |
+      Re-run the measurement and report the movement:
+        sh scripts/measure-modularity.sh
+      State explicitly: how many edges remain unclassified, and whether the RED set GREW or SHRANK
+      versus before this batch. A batch that shrinks unclassified while growing RED is a real
+      finding, not a failure — say so plainly rather than smoothing it over.
+      Then run `sh scripts/check-modularity-ratchet.sh` and report its exit status.
+    quality_gates:
+      - type: command
+        name: modularity-ratchet
+        command: "sh scripts/check-modularity-ratchet.sh"
+    rules:
+      - condition: The queue is empty (no unclassified edges remain) and the ratchet passes
+        next: COMPLETE
+      - condition: Unclassified edges remain
+        next: classify
