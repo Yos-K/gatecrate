@@ -2,6 +2,11 @@
 # docs/harness-status.md（リポから見えるダッシュボード）を再生成し、表が変わったときだけ PR を開く。
 # main へ直接 push せず PR にするのはブランチ保護を尊重するため（提案 → 人間が承認、の gatecrate 流）。
 # 時刻はファイルに入れない（git の最終コミット日時が鮮度）ので、ゲート構造が変わった時だけ差分＝PR が出る。
+#
+# 単一 PR 方式（2026-08-03〜）: ブランチは固定名 chore/dashboard-refresh に毎回 main から作り直して
+# force-push し、open PR は常に最大1本に保つ。旧方式（run_id 付きブランチで毎回新 PR）は、PR が
+# マージされない限り毎日1本ずつ積み上がる構造で、実際に 35 本滞留した（#57/#58 で統合回収）。
+# 差分が消えた場合（main 側が追いついた等）は open PR をクローズしてブランチを消す。
 name: Dashboard
 
 on:
@@ -22,6 +27,9 @@ concurrency:
   group: dashboard-refresh
   cancel-in-progress: true
 
+env:
+  REFRESH_BRANCH: chore/dashboard-refresh
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
@@ -40,21 +48,30 @@ jobs:
           fi
           DASHBOARD_HISTORY=docs/harness-history.tsv sh core/scripts/render-harness-dashboard.sh --snapshot > docs/harness-status.md
 
-      - name: Open a PR if the dashboard changed
+      - name: Update the single refresh PR (create / force-update / close)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          open_pr="$(gh pr list --head "$REFRESH_BRANCH" --state open --json number --jq '.[0].number // empty')"
           if git diff --quiet -- docs/harness-status.md docs/harness-history.tsv; then
             echo "dashboard unchanged — nothing to refresh."
+            # main が追いついて差分が消えたのに PR が残っている場合は閉じる（stale PR を残さない）
+            if [ -n "$open_pr" ]; then
+              gh pr close "$open_pr" --comment "main has caught up — the snapshot no longer differs. Closed by dashboard.yml." --delete-branch
+            fi
             exit 0
           fi
-          BR="chore/dashboard-refresh-${{ github.run_id }}"
           git config user.name  'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git checkout -b "$BR"
+          # 毎回 main から作り直して force-push: PR は常に「現 main との差分」だけを示す
+          git checkout -B "$REFRESH_BRANCH"
           git add docs/harness-status.md docs/harness-history.tsv
           git commit -m 'chore: refresh harness dashboard snapshot'
-          git push -u origin "$BR"
-          gh pr create --base main --head "$BR" \
-            --title 'chore: refresh harness dashboard snapshot' \
-            --body 'Automated refresh of docs/harness-status.md (gate type/liveness changed). Opened by .github/workflows/dashboard.yml; review and merge.'
+          git push -f origin "$REFRESH_BRANCH"
+          if [ -z "$open_pr" ]; then
+            gh pr create --base main --head "$REFRESH_BRANCH" \
+              --title 'chore: refresh harness dashboard snapshot' \
+              --body 'Automated refresh of docs/harness-status.md (gate type/liveness changed). Single rolling PR maintained by .github/workflows/dashboard.yml — later runs force-update this branch instead of opening new PRs. Review and merge.'
+          else
+            echo "updated existing PR #$open_pr"
+          fi
