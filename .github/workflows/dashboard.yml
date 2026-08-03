@@ -7,6 +7,11 @@
 # force-push し、open PR は常に最大1本に保つ。旧方式（run_id 付きブランチで毎回新 PR）は、PR が
 # マージされない限り毎日1本ずつ積み上がる構造で、実際に 35 本滞留した（#57/#58 で統合回収）。
 # 差分が消えた場合（main 側が追いついた等）は open PR をクローズしてブランチを消す。
+#
+# CI トリガー: GITHUB_TOKEN が作る push/PR には CI が走らない（GitHub の再帰防止仕様。旧方式の PR が
+# マージされず滞留した一因）。リポの secret DASHBOARD_PAT（fine-grained PAT: contents+pull-requests write）
+# を置くとそちらを使い、bot PR にも CI が自動で付く。無い場合は従来どおり GITHUB_TOKEN で動き、
+# マージ前に `gh workflow run ci --ref chore/dashboard-refresh` を手動で1回叩く運用になる。
 name: Dashboard
 
 on:
@@ -35,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.DASHBOARD_PAT || github.token }}
 
       - name: Record a history point (only when the counts change) and regenerate
         run: |
@@ -50,7 +57,7 @@ jobs:
 
       - name: Update the single refresh PR (create / force-update / close)
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.DASHBOARD_PAT || github.token }}
         run: |
           open_pr="$(gh pr list --head "$REFRESH_BRANCH" --state open --json number --jq '.[0].number // empty')"
           if git diff --quiet -- docs/harness-status.md docs/harness-history.tsv; then
