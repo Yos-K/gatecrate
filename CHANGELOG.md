@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **ADR 運用を自リポに強制（ドッグフード）**: feat/fix コミットに `ADR-Review:` トレーラを CI で必須化
+  （Rust 版 adr-review ゲートを self-CI に配線。消費者向けは従来どおり sh 版——役割分離は ADR-0002）。
+  移植境界を「層」から「判定の構造性」へ差し替え（ADR-0002: 構造判定は Rust・正規表現1本は sh が正解・
+  awk 30行閾値・probe-gate-liveness 互換の制約を明文化）。ADR-0001（ソース配布第一）とあわせ
+  `docs/adr/` を新設。
+
 ### Added
 - **Alloy 収束ループと意図反例ゲート（TAKT `spec-model-converge` ＋ `check-intended-counterexample.sh`）**:
   `check-domain-model.sh` は自らを「ドメイン学習ループの実行可能な出口」と定義しているが、ループ自体は
