@@ -86,6 +86,21 @@ printf '%s\n' "$OUT" | grep -q 'survived=0' && pass "SKIPs are not counted as su
 printf '%s\n' "$OUT" | grep 'SURVIVED' | grep -q '該当箇所なし' && fail "a skipped mutant leaked into SURVIVED: $OUT" || pass "SKIP and SURVIVED stay distinct"
 rm -rf "$W"
 
+echo "property 3b: a clean (all-killed) run reports a machine-readable count and a silent stderr"
+# レビュー指摘(PR #64): `grep -c X f || echo 0` は0件時に grep が「0」を出力した上で exit 1 するため
+# || も発火し "0\n0" になる。条件文脈では [ の型エラー(2)が偽扱いされ**偶然**通っていた。
+# 本 PR が狩っている「grep の exit code と出力の二重性」そのものなので、クラスごと固定する。
+W="$(mk yes)"
+OUT_ALL="$(cd "$W" && SH_MUTATION_TARGETS="scripts/check-demo.sh" \
+  SH_MUTATION_TEST_CMD="sh tests/test-check-demo.sh" sh scripts/run-mutation.sh 2>&1)" && RC=0 || RC=$?
+[ "$RC" -eq 0 ] && pass "clean run -> exit 0" || fail "expected 0, got $RC: $OUT_ALL"
+printf '%s\n' "$OUT_ALL" | grep -q 'integer expression' && fail "shell type error leaked to output: $OUT_ALL" || pass "no 'integer expression' error"
+printf '%s\n' "$OUT_ALL" | grep -qE 'survived=0( |$)' && pass "summary is machine-readable (survived=0)" || fail "unparsable summary: $(printf '%s\n' "$OUT_ALL" | grep survived=)"
+# 診断値: killed / skipped も数える（初期化だけしてサブシェルで失われていた指摘への対応）
+printf '%s\n' "$OUT_ALL" | grep -qE 'killed=[0-9]+' && pass "reports killed count" || fail "no killed count: $OUT_ALL"
+printf '%s\n' "$OUT_ALL" | grep -qE 'skipped=[0-9]+' && pass "reports skipped count" || fail "no skipped count: $OUT_ALL"
+rm -rf "$W"
+
 echo "property 4: SH_MUTATION_MAX_SURVIVORS raises the floor"
 W="$(mk no)"; run "$W" env SH_MUTATION_MAX_SURVIVORS=5
 [ "$RC" -eq 0 ] && pass "survivors under the floor -> exit 0" || fail "expected 0, got $RC: $OUT"

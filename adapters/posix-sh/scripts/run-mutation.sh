@@ -67,9 +67,10 @@ else
 fi
 [ -n "$TARGETS" ] || { echo "run-mutation: no target scripts matched $SH_MUTATION_TARGETS" >&2; exit 1; }
 
-killed=0; survived=0; skipped=0
-SURVIVORS="$(mktemp)"
-trap 'rm -f "$SURVIVORS"' EXIT INT TERM
+# 結果は while がサブシェルで走るため変数に貯められない。1ファイルに集約して後から数える
+# （killed/skipped も数えることで、生存ゼロでも「何体試したか」が診断できる）
+RESULTS="$(mktemp)"
+trap 'rm -f "$RESULTS"' EXIT INT TERM
 
 echo "run-mutation: injecting shell mutants (targets: $(printf '%s\n' "$TARGETS" | wc -l | tr -d ' ') file(s))"
 
@@ -86,25 +87,29 @@ for f in $TARGETS; do
     #   「テストが検出できなかった=survived」と誤報告される。手作業で2度踏んだ罠。
     if cmp -s "$backup" "$f"; then
       cp "$backup" "$f"; rm -f "$backup"
-      echo "  SKIP    $f — ${label}（このファイルに該当箇所なし）"
+      echo "SKIP    $f — ${label}（このファイルに該当箇所なし）" | tee -a "$RESULTS"
       continue
     fi
 
     if $TEST_CMD >/dev/null 2>&1; then
-      echo "  SURVIVED $f — $label" | tee -a "$SURVIVORS"
+      echo "SURVIVED $f — $label" | tee -a "$RESULTS"
     else
-      echo "  killed   $f — $label"
+      echo "killed   $f — $label" | tee -a "$RESULTS"
     fi
     cp "$backup" "$f"; rm -f "$backup"
   done
 done
 
-# サブシェル(while)で数えた値は失われるので、生存は一時ファイルから数え直す
-survived="$(grep -c SURVIVED "$SURVIVORS" 2>/dev/null || echo 0)"
-echo "run-mutation: survived=$survived (max allowed: $MAX_SURVIVORS)"
+# `grep -c PAT f || echo 0` は使わない: grep -c はマッチ0件でも「0」を出力した上で exit 1 するため
+# || も発火し "0\n0" になる。条件文脈では [ の型エラー(2)が偽扱いされ**偶然**動くが、サマリが機械
+# 可読でなくなり、比較を条件文脈の外へ動かした瞬間に set -e で死ぬ。set -e ガードだけ残す。
+killed="$(grep -c '^killed'   "$RESULTS" || :)"
+survived="$(grep -c '^SURVIVED' "$RESULTS" || :)"
+skipped="$(grep -c '^SKIP'    "$RESULTS" || :)"
+echo "run-mutation: killed=$killed survived=$survived skipped=$skipped (max allowed: $MAX_SURVIVORS)"
 if [ "$survived" -gt "$MAX_SURVIVORS" ]; then
   echo "run-mutation: FAIL — surviving mutants mean the behavior tests do not detect these breakages:" >&2
-  sed 's/^/  /' "$SURVIVORS" >&2
+  grep '^SURVIVED' "$RESULTS" | sed 's/^/  /' >&2
   echo "  Add a property that fails for each, then re-run. Do NOT weaken the mutator set." >&2
   exit 1
 fi
