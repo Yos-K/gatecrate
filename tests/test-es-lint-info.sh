@@ -21,7 +21,9 @@ PASS=0; FAIL=0
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 D="$(mktemp -d)"; trap 'rm -rf "$D"' EXIT
-run() { OUT="$(sh "$SCRIPT" "$1" 2>&1)" && RC=0 || RC=$?; }
+# ヘッダ行（=== es-lint-info: <tmpパス> ===）は OUT から除く: mktemp の乱数サフィックスが
+# R9 等のルールIDを偶然含むと「発火しないこと」の grep が誤マッチする（CI 実録 tmp.z3cUgMR98q）。
+run() { OUT="$(sh "$SCRIPT" "$1" 2>&1)" && RC=0 || RC=$?; OUT="$(printf '%s\n' "$OUT" | grep -v '^===' || true)"; }
 
 echo "property 1: an information-complete model passes (exit 0)"
 cat > "$D/ok.es" <<'EOF'
