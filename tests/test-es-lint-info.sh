@@ -161,5 +161,49 @@ run "$D/r16c.es"
 [ "$RC" -eq 1 ] && pass "is-a cycle -> ERROR(1)" || fail "cycle expected 1, got $RC: $OUT"
 printf '%s\n' "$OUT" | grep -q '循環' && pass "names the cycle" || fail "cycle not named: $OUT"
 
+# --- R17: out に発火条件を書く「欄の取り違え」の検出 ---
+# なぜ: in= には出所検査(R6)があるのに out= は「存在するか」しか見られていなかった。
+# 実際の消費者モデルで `out=常時`（＝発火条件であって出力ではない）が ERROR=0 で通過していた。
+# しかも when に「常時」が含まれると R11 は即 continue するため out を一切見ない。
+# **out の選択肢が既存語彙に解決するかは要求しない**——判定結果は新しい語で表すのが自然で
+# （受理|在庫切れ 等）、解決を強制すると正当な用法を弾く（試作で既存モデルに40件の誤検出）。
+echo "property 17: a firing condition written into out= is flagged — R17"
+cat > "$D/r17-bad.es" <<'EOF'
+N a1 aggregate 集約 | invariant=x | fields=f:Int
+N e1 event 何かが起きた | fields=g:Int
+N c1 command 何かする | in=f | out=e1
+N p1 policy 判定する | in=f | out=常時 | decide="常に"
+N ac actor 人
+E ac issues c1
+E c1 handles a1
+E a1 emits e1
+E e1 triggers p1
+E p1 issues c1 | when=常時
+EOF
+run "$D/r17-bad.es"
+printf '%s\n' "$OUT" | grep -q 'R17' && pass "undefined out= alternative is flagged" || fail "R17 not raised: $OUT"
+printf '%s\n' "$OUT" | grep -q '常時' && pass "names the offending value" || fail "not named: $OUT"
+
+echo "property 17b: result labels that resolve to nothing are FINE (they are new domain words)"
+cat > "$D/r17-ok.es" <<'EOF'
+N a1 aggregate 集約 | invariant=x | fields=f:Int | states=待機|実行中
+N e1 event 何かが起きた | fields=g:Int
+N c1 command 何かする | in=f | out=e1
+N p1 policy 判定する | in=f | out=受理|入力不正 | decide="fが正なら受理、そうでなければ入力不正"
+N ac actor 人
+E ac issues c1
+E c1 handles a1
+E a1 emits e1
+E e1 triggers p1
+E p1 issues c1 | when=受理
+EOF
+run "$D/r17-ok.es"
+printf '%s\n' "$OUT" | grep -q 'R17' && fail "false positive on a result label: $OUT" || pass "result labels not flagged"
+
+echo "property 17c: other firing-condition words are caught too (毎回/無条件/always)"
+sed 's/out=常時/out=無条件/' "$D/r17-bad.es" > "$D/r17-alt.es"
+run "$D/r17-alt.es"
+printf '%s\n' "$OUT" | grep -q 'R17' && pass "無条件 also flagged" || fail "slipped through: $OUT"
+
 echo "---- es-lint-info: PASS=$PASS FAIL=$FAIL ----"
 [ "$FAIL" -eq 0 ]

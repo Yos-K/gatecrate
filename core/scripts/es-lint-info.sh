@@ -20,6 +20,12 @@
 #   R4(warn) fields項目は :制約 推奨
 #   R5(warn) フラグ/コード/status/stage 名 → OR状態・状態遷移へ昇格を検討
 #   R6(warn) policy の in 項目が、どの fields/states にも定義が無い（出所未定義）
+#   R17(warn) policy/command の out に**発火条件**が書かれている（欄の取り違え）
+#             out は「判定の結果どの分岐になるか」（受理|入力不正 等の結果ラベルでよい）。
+#             「常時」「毎回」等は発火条件であり when= に書くもの。ここが無検査だと `out=常時` が通り、
+#             しかも when に「常時」があると R11 は out を一切見ないため、この穴は R17 でしか塞げない。
+#             ※ out の選択肢が既存の語彙に解決するかまでは要求しない——判定結果は新しい語で
+#               表すのが自然であり（受理/在庫切れ 等）、解決を強制すると正当な用法を弾く
 #   R7(warn) decide が複合条件(∧/かつ/&&)なのに behaviors で述語(「期限内」等)を定義していない／
 #            behavior に // 定義(計算ルール)が無い（用語が宙に浮く=semantics欠落）
 #   R8(warn) becomes=(AS-IS→TO-BE変化) は「なぜそう変えるか」を含むこと（因果の明示）
@@ -84,6 +90,23 @@ END{
       if(bout[id]=="") err[++ne]="R3 out無し: policy(" id ") ← 出力(out=X|Y)を明示(semantics)"
       if(dec[id]=="") err[++ne]="R3 decide無し: policy(" id ") ← 判定式(decide=\"...\")を明示"
       if(bin[id]!=""){ c=split(bin[id],a,/;/); for(j=1;j<=c;j++){ nm=basename(a[j]); if(nm!="" && !(nm in known)) warn[++nw]="R6 出所未定義: policy(" id ") の in \"" nm "\" は どの fields/states にも定義が無い" } }
+    }
+    # R17: out に発火条件を書いていないこと（欄の取り違え）。
+    # in(R6) は出所を検査されるのに out は「存在するか」しか見られていなかった。その結果
+    # `out=常時` のような取り違えが通る。しかも when に「常時」が含まれると R11 は即 continue し
+    # out を一切見ないため、この穴は R17 でしか塞げない。
+    # out の選択肢が既存語彙に解決するかは**要求しない**——判定結果は新しい語で表すのが自然で
+    # （受理/在庫切れ 等）、解決を強制すると正当な用法を弾く（実測: 既存モデルで40件の誤検出）。
+    if(type[id]=="policy" || type[id]=="command"){
+      if(bout[id]!=""){
+        c=split(bout[id],a,/\|/)
+        for(j=1;j<=c;j++){
+          nm=trim(a[j])
+          if(nm=="") continue
+          if(nm ~ /^(常時|毎回|always|いつでも|無条件)$/)
+            warn[++nw]="R17 欄の取り違え: " type[id] "(" id ") の out \"" nm "\" は発火条件であって出力ではない ← out には判定の結果(受理|入力不正 等)を書き、発火条件は when= に書く"
+        }
+      }
       # R7: 複合判定の述語(「期限内」「残量評価」等)が behaviors で定義されているか
       if((dec[id] ~ /∧/ || dec[id] ~ /かつ/ || dec[id] ~ /&&/) && bhv[id]=="") warn[++nw]="R7 述語未定義: policy(" id ") の decide が複合条件だが behaviors で言葉(期限内/残量評価 等)を定義していない ← 用語が宙に浮く(semantics欠落)"
       if(bhv[id]!=""){ c=split(bhv[id],a,/;/); for(j=1;j<=c;j++){ if(trim(a[j])!="" && index(a[j],"//")==0){ nm2=a[j]; sub(/:.*/,"",nm2); warn[++nw]="R7 定義なし述語: policy(" id ") の behavior \"" trim(nm2) "\" に // 定義(計算ルール)が無い" } } }
